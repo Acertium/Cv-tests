@@ -1,7 +1,8 @@
 /* App de estudio — capa de sincronización con Supabase.
    localStorage sigue siendo el almacén primario (respaldo). Esta capa lo
    espeja a public.estudio_progreso cuando hay sesión iniciada.
-   Solo anon key. Solo claves fusion_* de progreso (dark y total excluidas). */
+   Solo anon key. Solo claves fusion_* de progreso (dark y total excluidas).
+   Login OBLIGATORIO (gate a pantalla completa) si CFG.REQUIRE_AUTH !== false. */
 (function () {
   'use strict';
   var CFG = window.ESTUDIO_CONFIG || {};
@@ -11,9 +12,9 @@
   }
   var sb = window.supabase.createClient(CFG.SUPABASE_URL, CFG.SUPABASE_ANON_KEY);
   var TABLE = CFG.TABLE || 'estudio_progreso';
+  var requireAuth = CFG.REQUIRE_AUTH !== false; // login obligatorio por defecto
 
   // ── Qué claves se sincronizan ───────────────────────────────────────
-  // Todo fusion_* EXCEPTO preferencia de tema y caché regenerable.
   function shouldSync(k) {
     if (typeof k !== 'string' || k.indexOf('fusion_') !== 0) return false;
     if (k === 'fusion_dark') return false;              // solo local
@@ -25,11 +26,11 @@
   var LS = window.localStorage;
   var rawSet = LS.setItem.bind(LS);
   var rawRemove = LS.removeItem.bind(LS);
-  var session = null;          // sesión Supabase (o null)
-  var dirty = new Set();       // claves a subir
-  var removed = new Set();     // claves a borrar
+  var session = null;
+  var dirty = new Set();
+  var removed = new Set();
   var flushTimer = null;
-  var applyingRemote = false;  // evita re-encolar durante el pull
+  var applyingRemote = false;
 
   LS.setItem = function (k, val) {
     rawSet(k, val);
@@ -41,9 +42,9 @@
   };
 
   function schedule() {
-    if (!session) return;            // sin sesión: solo local, no se sube
+    if (!session) return;
     if (flushTimer) return;
-    flushTimer = setTimeout(flush, 1500); // debounce
+    flushTimer = setTimeout(flush, 1500);
   }
 
   function toJSON(str) { try { return JSON.parse(str); } catch (e) { return str; } }
@@ -65,10 +66,7 @@
     } catch (e) { console.warn('[cloud] flush error', e); }
   }
 
-  // ── Pull + merge al iniciar sesión ──────────────────────────────────
-  // LWW por dispositivo: la nube (que agrega todos los dispositivos) gana
-  // para claves presentes en ambos; las locales que no están en la nube se
-  // suben. Suficiente para un único usuario en un dispositivo a la vez.
+  // ── Pull + merge al iniciar sesión (SIN CAMBIOS de lógica) ──────────
   async function pullAndMerge() {
     var uid = session.user.id;
     var cloudKeys = new Set();
@@ -83,68 +81,94 @@
       applyingRemote = false;
     } catch (e) { applyingRemote = false; console.warn('[cloud] pull error', e); return; }
 
-    // Subir claves locales que la nube aún no tiene
     for (var i = 0; i < LS.length; i++) {
       var k = LS.key(i);
       if (shouldSync(k) && !cloudKeys.has(k)) dirty.add(k);
     }
     if (dirty.size) { schedule(); }
-    // Refrescar indicadores ya pintados (racha en la subbar), si existen
     if (typeof window.updateSubbarStreak === 'function') { try { window.updateSubbarStreak(); } catch (e) {} }
-    setStatus('☁️ Sincronizado');
+    if (typeof window.showToast === 'function') { try { window.showToast('☁️ Sincronizado', 2000); } catch (e) {} }
   }
 
-  // ── UI mínima de login (inyectada por JS, sin tocar index.html) ─────
+  // ── UI: gate de login (a pantalla completa si requireAuth) ──────────
+  var gateEl = null, btnEl = null, closeBtn = null;
+
   function injectUI() {
-    var btn = document.createElement('button');
-    btn.id = 'cloudBtn';
-    btn.style.cssText = 'position:fixed;right:12px;bottom:12px;z-index:9999;padding:8px 12px;border-radius:999px;border:none;background:#1f6feb;color:#fff;font:600 13px/1 system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)';
-    btn.textContent = '☁️ Conectar';
-    btn.onclick = function () { session ? signOut() : openLogin(); };
-    document.body.appendChild(btn);
-
-    var ov = document.createElement('div');
-    ov.id = 'cloudLogin';
-    ov.style.cssText = 'display:none;position:fixed;inset:0;z-index:10000;background:rgba(0,0,0,.45);align-items:center;justify-content:center';
-    ov.innerHTML =
-      '<div style="background:#fff;color:#111;padding:20px;border-radius:14px;width:min(340px,90vw);font-family:system-ui">' +
-      '<h3 style="margin:0 0 12px">Iniciar sesión</h3>' +
-      '<input id="cloudEmail" type="email" placeholder="email" autocomplete="username" style="width:100%;margin:0 0 8px;padding:10px;border:1px solid #ccc;border-radius:8px">' +
-      '<input id="cloudPass" type="password" placeholder="contraseña" autocomplete="current-password" style="width:100%;margin:0 0 12px;padding:10px;border:1px solid #ccc;border-radius:8px">' +
+    gateEl = document.createElement('div');
+    gateEl.id = 'cloudGate';
+    gateEl.style.cssText = 'display:none;position:fixed;inset:0;z-index:2147483647;background:#0f172a;align-items:center;justify-content:center;padding:16px;font-family:system-ui,-apple-system,sans-serif';
+    gateEl.innerHTML =
+      '<div style="position:relative;background:#fff;color:#111;padding:24px;border-radius:16px;width:min(360px,92vw);box-shadow:0 12px 40px rgba(0,0,0,.4)">' +
+      '<button id="cloudClose" title="Cerrar" style="display:none;position:absolute;top:10px;right:12px;border:none;background:transparent;font-size:18px;cursor:pointer;color:#888">✕</button>' +
+      '<div style="font-size:34px;text-align:center;margin-bottom:6px">🔒</div>' +
+      '<h2 style="margin:0 0 4px;text-align:center;font-size:20px">Test Movilidad Urbana</h2>' +
+      '<p style="margin:0 0 16px;text-align:center;color:#666;font-size:13px">Inicia sesión para acceder.</p>' +
+      '<input id="cloudEmail" type="email" placeholder="email" autocomplete="username" style="width:100%;box-sizing:border-box;margin:0 0 8px;padding:11px;border:1px solid #ccc;border-radius:8px">' +
+      '<input id="cloudPass" type="password" placeholder="contraseña" autocomplete="current-password" style="width:100%;box-sizing:border-box;margin:0 0 12px;padding:11px;border:1px solid #ccc;border-radius:8px">' +
       '<div id="cloudErr" style="color:#c00;font-size:13px;min-height:18px;margin-bottom:8px"></div>' +
-      '<div style="display:flex;gap:8px;justify-content:flex-end">' +
-      '<button id="cloudCancel" style="padding:9px 14px;border:1px solid #ccc;background:#fff;border-radius:8px;cursor:pointer">Cancelar</button>' +
-      '<button id="cloudDo" style="padding:9px 14px;border:none;background:#1f6feb;color:#fff;border-radius:8px;cursor:pointer">Entrar</button>' +
-      '</div></div>';
-    document.body.appendChild(ov);
-    ov.querySelector('#cloudCancel').onclick = function () { ov.style.display = 'none'; };
-    ov.querySelector('#cloudDo').onclick = doLogin;
+      '<button id="cloudDo" style="width:100%;padding:11px;border:none;background:#1f6feb;color:#fff;border-radius:8px;font-weight:600;cursor:pointer">Entrar</button>' +
+      '</div>';
+    document.body.appendChild(gateEl);
+    closeBtn = gateEl.querySelector('#cloudClose');
+    closeBtn.onclick = function () { if (!requireAuth) gateEl.style.display = 'none'; };
+    gateEl.querySelector('#cloudDo').onclick = doLogin;
+    gateEl.querySelector('#cloudPass').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+
+    btnEl = document.createElement('button');
+    btnEl.id = 'cloudBtn';
+    btnEl.style.cssText = 'display:none;position:fixed;right:12px;bottom:12px;z-index:9999;padding:8px 12px;border-radius:999px;border:none;background:#1f6feb;color:#fff;font:600 13px/1 system-ui;cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.25)';
+    btnEl.onclick = function () { session ? signOut() : (gateEl.style.display = 'flex'); };
+    document.body.appendChild(btnEl);
   }
-  function openLogin() { document.getElementById('cloudLogin').style.display = 'flex'; }
-  function setStatus(t) { var b = document.getElementById('cloudBtn'); if (b) b.textContent = t; }
+
+  // Aplica el estado visual según haya sesión y si el login es obligatorio.
+  function applyAuthState() {
+    if (!gateEl) return;
+    if (session) {
+      gateEl.style.display = 'none';
+      btnEl.style.display = '';
+      btnEl.textContent = '☁️ Cerrar sesión';
+      document.body.style.overflow = '';
+    } else if (requireAuth) {
+      // BLOQUEO TOTAL: gate a pantalla completa, sin escape ni botón flotante.
+      closeBtn.style.display = 'none';
+      gateEl.style.display = 'flex';
+      btnEl.style.display = 'none';
+      document.body.style.overflow = 'hidden';
+    } else {
+      // Modo opcional (reversible): gate cerrable + botón "Conectar".
+      closeBtn.style.display = '';
+      gateEl.style.display = 'none';
+      btnEl.style.display = '';
+      btnEl.textContent = '☁️ Conectar';
+      document.body.style.overflow = '';
+    }
+  }
 
   async function doLogin() {
-    var email = document.getElementById('cloudEmail').value.trim();
-    var pass = document.getElementById('cloudPass').value;
-    var err = document.getElementById('cloudErr'); err.textContent = '';
+    var email = (gateEl.querySelector('#cloudEmail').value || '').trim();
+    var pass = gateEl.querySelector('#cloudPass').value;
+    var err = gateEl.querySelector('#cloudErr'); err.textContent = '';
     var r = await sb.auth.signInWithPassword({ email: email, password: pass });
     if (r.error) { err.textContent = r.error.message; return; }
-    document.getElementById('cloudLogin').style.display = 'none';
+    // El desbloqueo lo hace onAuthStateChange → applyAuthState().
   }
   async function signOut() { await sb.auth.signOut(); }
 
   // ── Ciclo de sesión ─────────────────────────────────────────────────
   sb.auth.onAuthStateChange(function (_evt, s) {
     session = s;
-    if (session) { setStatus('☁️ …'); pullAndMerge(); }
-    else { setStatus('☁️ Conectar'); }
+    applyAuthState();
+    if (session) pullAndMerge();
   });
 
   function boot() {
     injectUI();
+    applyAuthState();           // bloquea de entrada si no hay sesión y requireAuth
     sb.auth.getSession().then(function (r) {
       session = r.data.session;
-      if (session) { setStatus('☁️ …'); pullAndMerge(); }
+      applyAuthState();
+      if (session) pullAndMerge();
     });
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot);
