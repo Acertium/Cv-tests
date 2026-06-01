@@ -1,0 +1,978 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Manual · Test Movilidad Urbana</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&display=swap');
+
+/* ── Variables ─────────────────────────────────────────────── */
+:root {
+  --bg:      #f5f4f0;
+  --card:    #ffffff;
+  --border:  #e0dfd8;
+  --text:    #1a1a1a;
+  --muted:   #6b7280;
+  --accent:  #2563eb;
+  --ok:      #16a34a;
+  --err:     #dc2626;
+  --warn:    #d97706;
+  --chip:    #1a1a1a;
+  --radius:  14px;
+  --shadow:  0 2px 12px rgba(0,0,0,.07);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Shell ──────────────────────────────────────────────────── */
+.shell {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  max-width: 480px;
+  margin: 0 auto;
+  position: relative;
+}
+
+/* ── Topbar ─────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  padding-top: max(10px, env(safe-area-inset-top));
+}
+.topbar__icon {
+  width: 34px; height: 34px;
+  background: var(--chip); color: #fff;
+  border-radius: 9px;
+  font-size: .75rem; font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.topbar__title {
+  font-size: .88rem;
+  font-weight: 600;
+  flex: 1;
+}
+.topbar__counter {
+  font-size: .75rem;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+/* ── Progress bar ───────────────────────────────────────────── */
+.progress-track {
+  height: 3px;
+  background: var(--border);
+  flex-shrink: 0;
+  position: relative;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 99px;
+  transition: width .35s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── Slides container ───────────────────────────────────────── */
+.slides-wrap {
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.slides-track {
+  display: flex;
+  height: 100%;
+  transition: transform .32s cubic-bezier(.4,0,.2,1);
+  will-change: transform;
+}
+
+.slide {
+  min-width: 100%;
+  height: 100%;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 20px 18px 100px;
+}
+
+/* ── Cards dentro de slides ─────────────────────────────────── */
+.s-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  padding: 18px;
+  box-shadow: var(--shadow);
+  margin-bottom: 14px;
+}
+
+.s-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--accent);
+  background: #eff6ff;
+  border-radius: 6px;
+  padding: 3px 8px;
+  margin-bottom: 12px;
+}
+
+.s-hero {
+  font-size: 2.8rem;
+  line-height: 1;
+  margin-bottom: 10px;
+}
+
+.s-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  line-height: 1.25;
+  margin-bottom: 8px;
+}
+
+.s-sub {
+  font-size: .9rem;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.s-body {
+  font-size: .88rem;
+  line-height: 1.6;
+  color: var(--text);
+  margin-bottom: 12px;
+}
+
+.s-section {
+  font-size: .65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  color: var(--muted);
+  margin: 18px 0 10px;
+}
+
+/* ── Feature rows ───────────────────────────────────────────── */
+.feat-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.feat-row:last-child { border-bottom: none; }
+
+.feat-icon {
+  font-size: 1.4rem;
+  width: 36px;
+  flex-shrink: 0;
+  text-align: center;
+  margin-top: 1px;
+}
+
+.feat-body { flex: 1; }
+.feat-name {
+  font-size: .88rem;
+  font-weight: 600;
+  margin-bottom: 2px;
+}
+.feat-desc {
+  font-size: .78rem;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+/* ── Steps ──────────────────────────────────────────────────── */
+.step-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.step-num {
+  width: 24px; height: 24px;
+  background: var(--chip);
+  color: #fff;
+  border-radius: 50%;
+  font-size: .72rem;
+  font-weight: 700;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.step-text {
+  font-size: .85rem;
+  line-height: 1.55;
+  color: var(--text);
+  padding-top: 2px;
+}
+
+/* ── Tip / Warning ──────────────────────────────────────────── */
+.tip {
+  background: #eff6ff;
+  border: 1px solid #93c5fd;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: #1e3a8a;
+  margin-bottom: 12px;
+}
+.warn {
+  background: #fff7ed;
+  border: 1px solid #fdba74;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: .82rem;
+  line-height: 1.5;
+  color: #7c2d12;
+  margin-bottom: 12px;
+}
+
+/* ── Badge strip ────────────────────────────────────────────── */
+.badge-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: .82rem;
+}
+.badge-row:last-child { border-bottom: none; }
+.badge {
+  font-size: .7rem;
+  font-weight: 700;
+  padding: 3px 9px;
+  border-radius: 20px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.badge-ok  { background: #f0fdf4; color: var(--ok); }
+.badge-mid { background: #fffbeb; color: var(--warn); }
+.badge-err { background: #fef2f2; color: var(--err); }
+.badge-neu { background: #f3f4f6; color: var(--muted); }
+
+/* ── State pills (racha) ────────────────────────────────────── */
+.state-pill {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: var(--bg);
+  border: 1.5px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  margin-bottom: 8px;
+}
+.state-pill--active { border-color: var(--accent); background: #eff6ff; }
+.state-pill__icon { font-size: 1.5rem; line-height: 1; }
+.state-pill__title { font-size: .84rem; font-weight: 700; margin-bottom: 2px; }
+.state-pill__desc  { font-size: .76rem; color: var(--muted); line-height: 1.4; }
+
+/* ── Índice ─────────────────────────────────────────────────── */
+.idx-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+.idx-btn {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 11px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+  text-align: left;
+  -webkit-tap-highlight-color: transparent;
+}
+.idx-btn:active { background: #eff6ff; border-color: var(--accent); }
+.idx-btn__num {
+  font-size: .65rem;
+  font-weight: 700;
+  color: var(--accent);
+  background: #eff6ff;
+  border-radius: 5px;
+  padding: 2px 6px;
+  flex-shrink: 0;
+}
+.idx-btn__label { font-size: .78rem; font-weight: 600; line-height: 1.3; }
+
+/* ── Portada ─────────────────────────────────────────────────── */
+.cover {
+  background: var(--chip);
+  border-radius: var(--radius);
+  padding: 28px 22px;
+  margin-bottom: 14px;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+.cover::before {
+  content: '';
+  position: absolute;
+  top: -30px; right: -30px;
+  width: 140px; height: 140px;
+  background: rgba(37,99,235,.3);
+  border-radius: 50%;
+}
+.cover__emoji { font-size: 3rem; margin-bottom: 14px; display: block; }
+.cover__title { font-size: 1.5rem; font-weight: 700; line-height: 1.2; margin-bottom: 6px; }
+.cover__sub   { font-size: .85rem; color: rgba(255,255,255,.6); line-height: 1.5; }
+
+/* ── Navigation ─────────────────────────────────────────────── */
+.nav-bar {
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  padding: 10px 16px;
+  padding-bottom: max(14px, env(safe-area-inset-bottom));
+  background: var(--card);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.nav-btn {
+  padding: 0 18px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  font-size: .85rem;
+  font-weight: 600;
+  color: var(--text);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background .12s, border-color .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-btn:disabled { opacity: .35; cursor: not-allowed; }
+.nav-btn:not(:disabled):active { background: #e5e7eb; }
+.nav-btn--primary {
+  flex: 1;
+  background: var(--chip);
+  color: #fff;
+  border-color: var(--chip);
+}
+.nav-btn--primary:not(:disabled):active { background: #333; }
+
+.nav-idx-btn {
+  height: 40px;
+  width: 40px;
+  border-radius: 10px;
+  border: 1.5px solid var(--border);
+  background: var(--bg);
+  font-size: 1rem;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+.nav-idx-btn:active { background: #e5e7eb; }
+
+/* ── Índice overlay ─────────────────────────────────────────── */
+.idx-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(0,0,0,.5);
+  display: flex;
+  align-items: flex-end;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity .2s;
+}
+.idx-overlay.open { opacity: 1; pointer-events: all; }
+.idx-sheet {
+  width: 100%;
+  max-height: 80vh;
+  background: var(--card);
+  border-radius: 18px 18px 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.idx-sheet__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 18px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.idx-sheet__title { font-weight: 700; font-size: .95rem; }
+.idx-sheet__close {
+  background: none; border: none;
+  font-size: 1.1rem; cursor: pointer; color: var(--muted);
+}
+.idx-sheet__body {
+  overflow-y: auto;
+  padding: 16px;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── Swipe hint ─────────────────────────────────────────────── */
+.swipe-hint {
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  font-size: .72rem; color: var(--muted); margin-top: 8px;
+}
+.swipe-hint__dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--border);
+  transition: background .2s, transform .2s;
+}
+.swipe-hint__dot--active {
+  background: var(--accent);
+  transform: scale(1.3);
+}
+</style>
+</head>
+<body>
+
+<div class="shell">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar__icon">MU</div>
+    <div class="topbar__title">Manual de usuario</div>
+    <div class="topbar__counter" id="counter">1 / 14</div>
+  </div>
+
+  <!-- Progress -->
+  <div class="progress-track">
+    <div class="progress-fill" id="progressFill" style="width:7.14%"></div>
+  </div>
+
+  <!-- Slides -->
+  <div class="slides-wrap" id="slidesWrap">
+    <div class="slides-track" id="slidesTrack">
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 0 — PORTADA + ÍNDICE
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="cover">
+          <span class="cover__emoji">🎓</span>
+          <div class="cover__title">Test Movilidad Urbana</div>
+          <div class="cover__sub">Manual de usuario · Policía Local Comunitat Valenciana</div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Contenidos — toca para ir directamente</div>
+          <div class="idx-grid">
+            <button class="idx-btn" onclick="goTo(1)"><span class="idx-btn__num">1</span><span class="idx-btn__label">Primeros pasos</span></button>
+            <button class="idx-btn" onclick="goTo(2)"><span class="idx-btn__num">2</span><span class="idx-btn__label">Pantalla de inicio</span></button>
+            <button class="idx-btn" onclick="goTo(3)"><span class="idx-btn__num">3</span><span class="idx-btn__label">Estudiar un tema</span></button>
+            <button class="idx-btn" onclick="goTo(4)"><span class="idx-btn__num">4</span><span class="idx-btn__label">Herramientas del tema</span></button>
+            <button class="idx-btn" onclick="goTo(5)"><span class="idx-btn__num">5</span><span class="idx-btn__label">Examen cronometrado</span></button>
+            <button class="idx-btn" onclick="goTo(6)"><span class="idx-btn__num">6</span><span class="idx-btn__label">Puntos débiles 🎯</span></button>
+            <button class="idx-btn" onclick="goTo(7)"><span class="idx-btn__num">7</span><span class="idx-btn__label">Favoritos ❤️</span></button>
+            <button class="idx-btn" onclick="goTo(8)"><span class="idx-btn__num">8</span><span class="idx-btn__label">Examen simulacro 🧩</span></button>
+            <button class="idx-btn" onclick="goTo(9)"><span class="idx-btn__num">9</span><span class="idx-btn__label">Repasar errores 🔁</span></button>
+            <button class="idx-btn" onclick="goTo(10)"><span class="idx-btn__num">10</span><span class="idx-btn__label">Estadísticas 📊</span></button>
+            <button class="idx-btn" onclick="goTo(11)"><span class="idx-btn__num">11</span><span class="idx-btn__label">Racha diaria 🔥</span></button>
+            <button class="idx-btn" onclick="goTo(12)"><span class="idx-btn__num">12</span><span class="idx-btn__label">Modo oscuro 🌙</span></button>
+            <button class="idx-btn" onclick="goTo(13)"><span class="idx-btn__num">13</span><span class="idx-btn__label">Exportar PDF 📄</span></button>
+          </div>
+        </div>
+        <div class="swipe-hint">Desliza para navegar &rarr;</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 1 — PRIMEROS PASOS
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">1 · Primeros pasos</div>
+        <div class="s-title">¿Qué es esta app?</div>
+        <div class="s-body">Una aplicación web para preparar las oposiciones a Policía Local de la Comunitat Valenciana. Tests de opción múltiple organizados por temas, siguiendo el programa oficial. Sin instalar nada — solo abre el navegador.</div>
+
+        <div class="tip">💡 Añádela a la pantalla de inicio de tu móvil para acceder con un solo tap: en Safari usa <b>"Añadir a pantalla de inicio"</b>; en Chrome usa <b>"Instalar aplicación"</b>.</div>
+
+        <div class="s-card">
+          <div class="s-section">La barra superior</div>
+          <div class="feat-row">
+            <div class="feat-icon">MU</div>
+            <div class="feat-body"><div class="feat-name">Logo MU</div><div class="feat-desc">Pulsa para volver al índice de temas desde cualquier pantalla.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">🌙</div>
+            <div class="feat-body"><div class="feat-name">Switch modo oscuro</div><div class="feat-desc">Interruptor deslizante para cambiar entre modo claro y oscuro.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">☰</div>
+            <div class="feat-body"><div class="feat-name">Menú de temas</div><div class="feat-desc">Abre el panel para elegir cualquier tema disponible.</div></div>
+          </div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">La barra secundaria</div>
+          <div class="feat-row">
+            <div class="feat-icon">🔥</div>
+            <div class="feat-body"><div class="feat-name">Racha diaria</div><div class="feat-desc">Días consecutivos practicando. Pulsa para ver el detalle.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">🧩</div>
+            <div class="feat-body"><div class="feat-name">Simulacro</div><div class="feat-desc">Examen mezclando preguntas de varios temas a la vez.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">📊</div>
+            <div class="feat-body"><div class="feat-name">Estadísticas globales</div><div class="feat-desc">Tu acierto y progreso en todos los temas trabajados.</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 2 — PANTALLA DE INICIO
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">2 · Pantalla de inicio</div>
+        <div class="s-title">Tu centro de control</div>
+        <div class="s-body">Al entrar (o al pulsar MU) verás dos bloques: <b>Libro Meta</b> y <b>Serie Oposiciones</b>. Cada bloque tiene un chip por cada tema.</div>
+
+        <div class="s-card">
+          <div class="s-section">Los chips de tema</div>
+          <div class="feat-row">
+            <div class="feat-icon">📗</div>
+            <div class="feat-body"><div class="feat-name">Libro Meta (T-1 a T-40)</div><div class="feat-desc">40 temas teóricos del programa.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">📘</div>
+            <div class="feat-body"><div class="feat-name">Serie Oposiciones (T-1 a T-40)</div><div class="feat-desc">40 temas con preguntas de convocatorias oficiales.</div></div>
+          </div>
+          <div class="feat-row">
+            <div class="feat-icon">🟩</div>
+            <div class="feat-body"><div class="feat-name">Barra de progreso verde</div><div class="feat-desc">Debajo de cada chip: cuántas preguntas has respondido. Sin barra = tema no empezado.</div></div>
+          </div>
+        </div>
+
+        <div class="warn">⚠️ Los chips en gris claro están bloqueados y aún no tienen preguntas disponibles.</div>
+
+        <div class="tip">💡 Toca cualquier chip para cargar el tema. La app recuerda tu posición y respuestas aunque cierres el navegador.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 3 — ESTUDIAR UN TEMA
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">3 · Estudiar un tema</div>
+        <div class="s-title">Preguntas y respuestas</div>
+
+        <div class="s-card">
+          <div class="s-section">Panel de resumen</div>
+          <div class="feat-row"><div class="feat-icon">📝</div><div class="feat-body"><div class="feat-name">Contestadas</div><div class="feat-desc">Cuántas preguntas has respondido en total.</div></div></div>
+          <div class="feat-row"><div class="feat-icon" style="color:var(--ok)">✓</div><div class="feat-body"><div class="feat-name">Acertadas</div><div class="feat-desc">Las que has respondido correctamente (en verde).</div></div></div>
+          <div class="feat-row"><div class="feat-icon" style="color:var(--err)">✗</div><div class="feat-body"><div class="feat-name">Falladas</div><div class="feat-desc">Las que has respondido mal (en rojo).</div></div></div>
+          <div class="feat-row"><div class="feat-icon">📋</div><div class="feat-body"><div class="feat-name">Total</div><div class="feat-desc">Número total de preguntas del tema.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Responder una pregunta</div>
+          <div class="s-body">Toca la opción que consideres correcta. Al instante aparece el resultado:</div>
+          <div class="feat-row"><div class="feat-icon">🟢</div><div class="feat-body"><div class="feat-name">Respuesta correcta</div><div class="feat-desc">Se pinta en verde. Las demás se oscurecen.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🔴</div><div class="feat-body"><div class="feat-name">Respuesta incorrecta</div><div class="feat-desc">Tu opción en rojo y la correcta en verde.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">📖</div><div class="feat-body"><div class="feat-name">Explicación</div><div class="feat-desc">Texto que justifica la respuesta correcta.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Barra de navegación inferior</div>
+          <div class="feat-row"><div class="feat-icon">←</div><div class="feat-body"><div class="feat-name">Anterior</div><div class="feat-desc">Va a la pregunta anterior.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">⊞</div><div class="feat-body"><div class="feat-name">Índice</div><div class="feat-desc">Muestra todas las preguntas con colores: verde (acertada), rojo (fallada), gris (no vista). Pulsa cualquiera para ir directamente.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">→</div><div class="feat-body"><div class="feat-name">Siguiente</div><div class="feat-desc">Va a la pregunta siguiente.</div></div></div>
+        </div>
+
+        <div class="tip">💡 No puedes cambiar una respuesta una vez dada. Para empezar de cero usa "↺ Reiniciar tema".</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 4 — HERRAMIENTAS DEL TEMA
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">4 · Herramientas del tema</div>
+        <div class="s-title">Iconos en cada pregunta</div>
+
+        <div class="s-card">
+          <div class="feat-row"><div class="feat-icon">🤍❤️</div><div class="feat-body"><div class="feat-name">Favorito (junto al lápiz)</div><div class="feat-desc">Toca para marcar la pregunta en rojo. Vuelve a tocar para desmarcar.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">✏️</div><div class="feat-body"><div class="feat-name">Editar</div><div class="feat-desc">Abre el editor para corregir enunciado, opciones o explicación si detectas un error.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Botones de acción del tema</div>
+          <div class="feat-row"><div class="feat-icon">↺</div><div class="feat-body"><div class="feat-name">Reiniciar tema</div><div class="feat-desc">Borra todas las respuestas del tema para empezar de cero. Pide confirmación.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">⏱</div><div class="feat-body"><div class="feat-name">Examen cronometrado</div><div class="feat-desc">10 preguntas aleatorias en 10 minutos.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🎯</div><div class="feat-body"><div class="feat-name">Puntos débiles</div><div class="feat-desc">20 preguntas priorizando las que más has fallado.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">❤️</div><div class="feat-body"><div class="feat-name">Mis marcadas</div><div class="feat-desc">Examen solo con las preguntas que tienes marcadas como favoritas.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Panel de estadísticas del tema</div>
+          <div class="s-body">Aparece automáticamente debajo de los botones cuando tienes al menos 1 respuesta. Muestra las preguntas más falladas en un desplegable — tócalo para expandirlo y pulsa cualquier pregunta para ir directamente a ella.</div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 5 — EXAMEN CRONOMETRADO
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">5 · Examen cronometrado</div>
+        <div class="s-title">10 preguntas · 10 minutos ⏱</div>
+        <div class="s-body">El examen cronometrado te pone a prueba contra el reloj, sin ver si aciertas o fallas hasta el final. Así simulas las condiciones reales de la oposición.</div>
+
+        <div class="s-card">
+          <div class="s-section">Cómo funciona</div>
+          <div class="step-row"><div class="step-num">1</div><div class="step-text">Pulsa el botón <b>⏱</b> en el tema. Se abre el panel de examen.</div></div>
+          <div class="step-row"><div class="step-num">2</div><div class="step-text">Se muestran 10 preguntas aleatorias del tema activo, de una en una.</div></div>
+          <div class="step-row"><div class="step-num">3</div><div class="step-text">Toca la opción elegida. Pasas automáticamente a la siguiente sin ver el resultado.</div></div>
+          <div class="step-row"><div class="step-num">4</div><div class="step-text">Al terminar o agotar el tiempo, ves el resultado y la revisión completa con explicaciones.</div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Indicadores durante el examen</div>
+          <div class="feat-row"><div class="feat-icon">⏱</div><div class="feat-body"><div class="feat-name">Cronómetro</div><div class="feat-desc">Se pone rojo en el último minuto. Sigue corriendo aunque termines el tiempo — el examen no se fuerza a acabar.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">●●●</div><div class="feat-body"><div class="feat-name">Puntos de progreso</div><div class="feat-desc">Una fila de puntos muestra cuántas preguntas has contestado y en cuál estás.</div></div></div>
+        </div>
+
+        <div class="tip">💡 Al terminar, si has fallado alguna pregunta aparece el botón rojo <b>"🔁 Repasar N errores"</b> para hacer inmediatamente un repaso de lo que has fallado.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 6 — PUNTOS DÉBILES
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">6 · Puntos débiles</div>
+        <div class="s-title">Repaso inteligente 🎯</div>
+        <div class="s-body">El algoritmo analiza tus respuestas anteriores y selecciona las preguntas con más probabilidad de aparecer en función de cuánto las has fallado. Cuanto más fallas una pregunta, más probabilidad tiene de salir.</div>
+
+        <div class="s-card">
+          <div class="s-section">Requisito para activarlo</div>
+          <div class="s-body">Necesitas haber respondido al menos <b>50 preguntas</b> del tema (o todas, si el tema tiene menos de 50). El botón <b>🎯</b> muestra un aviso con cuántas te faltan si no llegas al mínimo.</div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Características</div>
+          <div class="feat-row"><div class="feat-icon">📋</div><div class="feat-body"><div class="feat-name">20 preguntas seleccionadas</div><div class="feat-desc">Las más falladas tienen más peso, pero todas pueden aparecer.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">⏱</div><div class="feat-body"><div class="feat-name">20 minutos</div><div class="feat-desc">Tiempo asignado para las 20 preguntas.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🔀</div><div class="feat-body"><div class="feat-name">Siempre diferente</div><div class="feat-desc">Cada vez que lo activas, la selección varía al azar dentro del peso de cada pregunta.</div></div></div>
+        </div>
+
+        <div class="tip">💡 Usa el repaso de puntos débiles cuando ya hayas recorrido el tema entero al menos una vez. Es la herramienta más eficaz para fijar lo que no recuerdas.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 7 — FAVORITOS
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">7 · Favoritos</div>
+        <div class="s-title">Marca lo que más te cuesta ❤️</div>
+        <div class="s-body">Señala preguntas concretas para revisarlas cuando quieras. Útil para preguntas con matices difíciles o que has fallado varias veces.</div>
+
+        <div class="s-card">
+          <div class="s-section">Cómo marcar</div>
+          <div class="step-row"><div class="step-num">1</div><div class="step-text">En la esquina superior derecha de cada pregunta verás el icono de corazón junto al lápiz.</div></div>
+          <div class="step-row"><div class="step-num">2</div><div class="step-text">Toca <b>🤍</b> para marcar. El corazón se pone rojo <b>❤️</b> con fondo rosado.</div></div>
+          <div class="step-row"><div class="step-num">3</div><div class="step-text">Aparece un toast de confirmación: <b>"❤️ Pregunta marcada"</b>.</div></div>
+          <div class="step-row"><div class="step-num">4</div><div class="step-text">Toca de nuevo para desmarcar. Toast: <b>"🤍 Marcador eliminado"</b>.</div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Examen de favoritas</div>
+          <div class="s-body">Pulsa el botón <b>❤️</b> en el panel del tema para lanzar un examen solo con tus preguntas marcadas. El tiempo se calcula automáticamente: <b>90 segundos por pregunta</b>, mínimo 5 minutos.</div>
+        </div>
+
+        <div class="tip">💡 Los favoritos se guardan por tema. Las marcadas en T-1 Serie Oposiciones no aparecen en el examen de favoritas de T-1 Libro Meta.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 8 — SIMULACRO
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">8 · Examen simulacro</div>
+        <div class="s-title">Mezcla varios temas 🧩</div>
+        <div class="s-body">Crea un examen personalizado combinando preguntas de múltiples temas, con el número de preguntas y tiempo que elijas. Accede desde el botón <b>🧩 Simulacro</b> de la barra secundaria.</div>
+
+        <div class="s-card">
+          <div class="s-section">Pasos</div>
+          <div class="step-row"><div class="step-num">1</div><div class="step-text">Pulsa <b>🧩 Simulacro</b> en la barra secundaria.</div></div>
+          <div class="step-row"><div class="step-num">2</div><div class="step-text">Selecciona los temas que quieres incluir (se resaltan en azul). Puedes mezclar Libro Meta y Serie Oposiciones.</div></div>
+          <div class="step-row"><div class="step-num">3</div><div class="step-text">Elige el <b>número de preguntas</b>: 10, 20, 30, 50, 75 o 100.</div></div>
+          <div class="step-row"><div class="step-num">4</div><div class="step-text">Elige el <b>tiempo</b>: entre 10 y 120 minutos.</div></div>
+          <div class="step-row"><div class="step-num">5</div><div class="step-text">Pulsa <b>"▶ Iniciar"</b>. Las preguntas se mezclan al azar.</div></div>
+        </div>
+
+        <div class="tip">💡 Las estadísticas de cada pregunta del simulacro se guardan en su tema de origen, igual que si la hubieras respondido estudiando el tema directamente.</div>
+
+        <div class="warn">⚠️ Si eliges menos preguntas de las disponibles (ej. 20 preguntas de 5 temas), la app selecciona 20 al azar del total. Cada simulacro es diferente.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 9 — REPASAR ERRORES
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">9 · Repasar errores</div>
+        <div class="s-title">En caliente, tras el examen 🔁</div>
+        <div class="s-body">Al terminar cualquier examen (cronometrado, puntos débiles, favoritas o simulacro), si has fallado alguna pregunta aparece automáticamente un botón rojo.</div>
+
+        <div class="s-card">
+          <div class="s-section">El botón rojo</div>
+          <div class="s-body" style="font-size:.95rem; font-weight:600; color:var(--err);">🔁 Repasar N errores</div>
+          <div class="s-body">Donde N es el número exacto de preguntas que has fallado en ese examen. Al pulsarlo:</div>
+          <div class="feat-row"><div class="feat-icon">📋</div><div class="feat-body"><div class="feat-name">Solo las preguntas falladas</div><div class="feat-desc">En orden aleatorio.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">⏱</div><div class="feat-body"><div class="feat-name">1 minuto por pregunta</div><div class="feat-desc">Mínimo 5 minutos en total.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🔁</div><div class="feat-body"><div class="feat-name">Repetible</div><div class="feat-desc">Al terminar el repaso, puedes repetirlo de nuevo con el botón "🔁 Repetir errores".</div></div></div>
+        </div>
+
+        <div class="tip">💡 Usa el repaso de errores inmediatamente después de cada examen para afianzar las respuestas mientras las tienes frescas en la memoria.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 10 — ESTADÍSTICAS
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">10 · Estadísticas</div>
+        <div class="s-title">Conoce tus puntos débiles 📊</div>
+        <div class="s-body">La app registra cada respuesta automáticamente. Los datos se usan para dos niveles de estadísticas: por tema y global.</div>
+
+        <div class="s-card">
+          <div class="s-section">Estadísticas de tema</div>
+          <div class="s-body">Visibles dentro de cada tema, debajo de los botones de acción. Se actualizan en tiempo real.</div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Estadísticas globales — botón 📊</div>
+          <div class="s-body">Pulsa <b>📊 Estadísticas</b> en la barra secundaria. Muestra:</div>
+          <div class="feat-row"><div class="feat-icon">%</div><div class="feat-body"><div class="feat-name">Acierto global</div><div class="feat-desc">Tu porcentaje total de acierto en todos los temas trabajados.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">📋</div><div class="feat-body"><div class="feat-name">Lista por tema</div><div class="feat-desc">Cada tema con su tasa de acierto y número de respuestas.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">📄</div><div class="feat-body"><div class="feat-name">Exportar PDF</div><div class="feat-desc">Botón para descargar el informe completo.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">¿Qué significan los colores?</div>
+          <div class="badge-row"><span class="badge badge-ok">≥ 70%</span><span>Buen nivel. Consolida.</span></div>
+          <div class="badge-row"><span class="badge badge-mid">50–69%</span><span>Nivel medio. Hay margen.</span></div>
+          <div class="badge-row"><span class="badge badge-err">&lt; 50%</span><span>Nivel bajo. Prioriza este tema.</span></div>
+        </div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 11 — RACHA DIARIA
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">11 · Racha diaria</div>
+        <div class="s-title">Mantén el hábito de estudio 🔥</div>
+        <div class="s-body">Cuenta los días consecutivos en los que has respondido al menos una pregunta. Pulsa <b>🔥 N días</b> en la barra secundaria para ver el detalle.</div>
+
+        <div class="s-card">
+          <div class="s-section">Estados posibles</div>
+          <div class="state-pill state-pill--active">
+            <div class="state-pill__icon">🔥</div>
+            <div><div class="state-pill__title">Racha activa — hoy practicado</div><div class="state-pill__desc">Has respondido preguntas hoy. ¡Sigue así!</div></div>
+          </div>
+          <div class="state-pill">
+            <div class="state-pill__icon">🔥⚠️</div>
+            <div><div class="state-pill__title">Racha en peligro</div><div class="state-pill__desc">Llevas racha pero hoy no has practicado. Si no lo haces antes de medianoche, la perderás.</div></div>
+          </div>
+          <div class="state-pill">
+            <div class="state-pill__icon">💤</div>
+            <div><div class="state-pill__title">Sin racha</div><div class="state-pill__desc">No tienes racha activa. Responde cualquier pregunta para empezar.</div></div>
+          </div>
+        </div>
+
+        <div class="tip">💡 La racha se calcula por día natural (medianoche a medianoche). Si practicas varias veces al día, solo cuenta como uno. Se rompe si no practicas dos días seguidos.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 12 — MODO OSCURO
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">12 · Modo oscuro</div>
+        <div class="s-title">Estudia de noche sin forzar la vista 🌙</div>
+        <div class="s-body">Cambia todos los colores a una paleta oscura. Cómodo para estudiar con poca luz o de noche. La preferencia se guarda y se mantiene aunque cierres el navegador.</div>
+
+        <div class="s-card">
+          <div class="s-section">Cómo activarlo</div>
+          <div class="s-body">En el topbar verás un <b>interruptor deslizante</b> entre el logo MU y el botón de menú ☰.</div>
+          <div class="feat-row"><div class="feat-icon">⬜</div><div class="feat-body"><div class="feat-name">Izquierda (apagado)</div><div class="feat-desc">Modo claro activo — fondo beige.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">⬛</div><div class="feat-body"><div class="feat-name">Derecha (encendido)</div><div class="feat-desc">Modo oscuro activo — fondo gris oscuro.</div></div></div>
+        </div>
+
+        <div class="tip">💡 El modo oscuro se aplica a toda la app: chips, preguntas, overlays de examen, estadísticas y modales.</div>
+      </div>
+
+      <!-- ══════════════════════════════════════════════════════
+           SLIDE 13 — EXPORTAR PDF
+      ══════════════════════════════════════════════════════ -->
+      <div class="slide">
+        <div class="s-tag">13 · Exportar informe PDF</div>
+        <div class="s-title">Tu historial de estudio en papel 📄</div>
+        <div class="s-body">Descarga un PDF con un resumen completo de tu rendimiento. Se genera al instante, sin conexión a servidores externos.</div>
+
+        <div class="s-card">
+          <div class="s-section">¿Qué contiene?</div>
+          <div class="feat-row"><div class="feat-icon">📅</div><div class="feat-body"><div class="feat-name">Fecha de exportación</div><div class="feat-desc">Cabecera con el título y la fecha.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🔥</div><div class="feat-body"><div class="feat-name">Racha de estudio actual</div><div class="feat-desc">Días consecutivos practicando.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">📊</div><div class="feat-body"><div class="feat-name">Tabla por tema</div><div class="feat-desc">Progreso, % acierto y fallos. Fila GLOBAL con el resumen total.</div></div></div>
+          <div class="feat-row"><div class="feat-icon">🔴</div><div class="feat-body"><div class="feat-name">Top 10 más falladas</div><div class="feat-desc">Las preguntas con mayor tasa de error de toda la app.</div></div></div>
+        </div>
+
+        <div class="s-card">
+          <div class="s-section">Cómo exportar</div>
+          <div class="step-row"><div class="step-num">1</div><div class="step-text">Pulsa <b>📊 Estadísticas</b> en la barra secundaria.</div></div>
+          <div class="step-row"><div class="step-num">2</div><div class="step-text">Desplázate hacia abajo en el panel.</div></div>
+          <div class="step-row"><div class="step-num">3</div><div class="step-text">Pulsa <b>"📄 Exportar informe PDF"</b>. Se descarga automáticamente.</div></div>
+        </div>
+
+        <div class="warn">⚠️ Si no has respondido ninguna pregunta todavía, aparecerá un aviso indicando que no hay datos suficientes.</div>
+
+        <!-- Fin / volver al índice -->
+        <div class="s-card" style="text-align:center; padding: 24px 18px;">
+          <div style="font-size:2rem; margin-bottom:8px;">💪</div>
+          <div style="font-weight:700; margin-bottom:6px;">¡Mucho ánimo con la oposición!</div>
+          <div style="font-size:.82rem; color:var(--muted); margin-bottom:16px;">Has llegado al final del manual.</div>
+          <button onclick="goTo(0)" style="padding:10px 22px; background:var(--chip); color:#fff; border:none; border-radius:10px; font-size:.85rem; font-weight:600; cursor:pointer; font-family:inherit;">← Volver al índice</button>
+        </div>
+      </div>
+
+    </div><!-- /slides-track -->
+  </div><!-- /slides-wrap -->
+
+  <!-- Nav bar -->
+  <div class="nav-bar">
+    <button class="nav-btn" id="btnPrev" onclick="prev()" disabled>←</button>
+    <button class="nav-idx-btn" onclick="openIdx()" title="Índice">⊞</button>
+    <button class="nav-btn nav-btn--primary" id="btnNext" onclick="next()">Siguiente →</button>
+  </div>
+
+  <!-- Dots -->
+  <div class="swipe-hint" id="dotsBar" style="padding:6px 0; background:var(--card); border-top:1px solid var(--border); flex-shrink:0;">
+  </div>
+</div><!-- /shell -->
+
+<!-- Índice overlay -->
+<div class="idx-overlay" id="idxOverlay" onclick="closeIdx()">
+  <div class="idx-sheet" onclick="event.stopPropagation()">
+    <div class="idx-sheet__head">
+      <span class="idx-sheet__title">📚 Índice del manual</span>
+      <button class="idx-sheet__close" onclick="closeIdx()">✕</button>
+    </div>
+    <div class="idx-sheet__body">
+      <div class="idx-grid" id="idxGrid"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+const TOTAL = 14; // slides 0..13
+let current = 0;
+let startX = 0, startY = 0, dragging = false;
+
+const track    = document.getElementById('slidesTrack');
+const counter  = document.getElementById('counter');
+const fill     = document.getElementById('progressFill');
+const btnPrev  = document.getElementById('btnPrev');
+const btnNext  = document.getElementById('btnNext');
+const dotsBar  = document.getElementById('dotsBar');
+const idxOverlay = document.getElementById('idxOverlay');
+const idxGrid  = document.getElementById('idxGrid');
+
+const LABELS = [
+  'Índice','Primeros pasos','Pantalla de inicio','Estudiar un tema',
+  'Herramientas','Examen cronometrado','Puntos débiles','Favoritos',
+  'Simulacro','Repasar errores','Estadísticas','Racha diaria',
+  'Modo oscuro','Exportar PDF'
+];
+
+// Construir índice overlay
+LABELS.forEach((label, i) => {
+  const btn = document.createElement('button');
+  btn.className = 'idx-btn';
+  btn.innerHTML = `<span class="idx-btn__num">${i === 0 ? '📚' : i}</span><span class="idx-btn__label">${label}</span>`;
+  btn.onclick = () => { goTo(i); closeIdx(); };
+  idxGrid.appendChild(btn);
+});
+
+// Construir dots
+function buildDots() {
+  dotsBar.innerHTML = '';
+  const MAX_DOTS = 7;
+  // Mostrar máximo 7 dots, con el activo siempre visible
+  const step = Math.max(1, Math.floor(TOTAL / MAX_DOTS));
+  for (let i = 0; i < TOTAL; i += step) {
+    const dot = document.createElement('span');
+    dot.className = 'swipe-hint__dot' + (i === current ? ' swipe-hint__dot--active' : '');
+    dotsBar.appendChild(dot);
+  }
+}
+
+function render() {
+  track.style.transform = `translateX(-${current * 100}%)`;
+  counter.textContent = `${current + 1} / ${TOTAL}`;
+  fill.style.width = `${((current + 1) / TOTAL) * 100}%`;
+  btnPrev.disabled = current === 0;
+  btnNext.textContent = current === TOTAL - 1 ? '← Índice' : 'Siguiente →';
+  btnNext.onclick = current === TOTAL - 1 ? () => goTo(0) : next;
+  // Scroll al top del slide actual
+  const slides = track.querySelectorAll('.slide');
+  if (slides[current]) slides[current].scrollTop = 0;
+  buildDots();
+}
+
+function goTo(n) {
+  current = Math.max(0, Math.min(TOTAL - 1, n));
+  render();
+}
+function next() { goTo(current + 1); }
+function prev() { goTo(current - 1); }
+
+// Swipe
+const wrap = document.getElementById('slidesWrap');
+wrap.addEventListener('touchstart', e => {
+  startX = e.touches[0].clientX;
+  startY = e.touches[0].clientY;
+  dragging = true;
+}, { passive: true });
+
+wrap.addEventListener('touchend', e => {
+  if (!dragging) return;
+  const dx = e.changedTouches[0].clientX - startX;
+  const dy = e.changedTouches[0].clientY - startY;
+  if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+    if (dx < 0) next(); else prev();
+  }
+  dragging = false;
+}, { passive: true });
+
+// Teclado (escritorio)
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') next();
+  if (e.key === 'ArrowLeft')  prev();
+});
+
+function openIdx() {
+  idxOverlay.classList.add('open');
+}
+function closeIdx() {
+  idxOverlay.classList.remove('open');
+}
+
+render();
+</script>
+</body>
+</html>
