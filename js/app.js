@@ -206,6 +206,21 @@ document.addEventListener('DOMContentLoaded', () => {
     </div>`;
   document.body.appendChild(simEl);
 
+  // Inyectar overlay del cajón de errores (reutiliza estilos sim-*)
+  const cajonEl = document.createElement('div');
+  cajonEl.id = 'cajonOverlay';
+  cajonEl.className = 'sim-overlay';
+  cajonEl.innerHTML = `
+    <div class="sim-sheet">
+      <div class="sim-header">
+        <span class="sim-title" id="cajonTitle">📦 Cajón de errores</span>
+        <button class="sim-close" onclick="closeCajon()">✕</button>
+      </div>
+      <div class="sim-body" id="cajonBody"></div>
+      <div class="sim-footer" id="cajonFooter"></div>
+    </div>`;
+  document.body.appendChild(cajonEl);
+
   // Modo oscuro: aplicar preferencia guardada
   initDarkMode();
 
@@ -270,6 +285,8 @@ function goHome() {
   // Cerrar cualquier overlay activo
   if (document.getElementById('examOverlay').classList.contains('open')) closeExam();
   if (document.getElementById('simOverlay').classList.contains('open'))  closeSim();
+  const cajonOv = document.getElementById('cajonOverlay');
+  if (cajonOv && cajonOv.classList.contains('open')) closeCajon();
   state.group     = null;
   state.temaId    = null;
   state.questions = [];
@@ -365,6 +382,7 @@ function updatePickerBtn() {
 // ─── SUBBAR: racha + simulacro + estadisticas ──────────────────────────────────
 function initSubbar() {
   updateSubbarStreak();
+  updateCajonBtn();
 }
 
 function updateSubbarStreak() {
@@ -1173,6 +1191,8 @@ const EXAM = {
   _isRetry:        false,
   _isFav:          false,
   _isSim:          false,
+  _isCajon:        false,
+  _pendingAnswer:  null, // simulacro/cajón: opción tocada aún sin confirmar
 };
 
 function shuffleArray(arr) {
@@ -1231,19 +1251,38 @@ function renderExamQuestion() {
     return '<span class="' + cls + '"></span>';
   }).join('');
 
+  // En simulacro/cajón la opción resaltada = la provisional (EXAM._pendingAnswer) o, al volver atrás,
+  // la ya confirmada (EXAM.answers[idx]); en ambos casos sin revelar si es correcta o incorrecta.
+  const manualNav = EXAM._isSim || EXAM._isCajon;
+  const chosen = manualNav
+    ? (EXAM._pendingAnswer != null ? EXAM._pendingAnswer : EXAM.answers[idx])
+    : null;
+
   const opts = ['a','b','c','d'].filter(l => q.o[l]).map(l =>
-    '<button class="exam-opt" onclick="examAnswer(\'' + l + '\')">' +
+    '<button class="exam-opt' + (l === chosen ? ' exam-opt--chosen' : '') + '" onclick="examAnswer(\'' + l + '\')">' +
     '<span class="exam-opt__letter">' + l.toUpperCase() + '</span>' +
     '<span class="exam-opt__text">' + escHtml(q.o[l]) + '</span>' +
     '</button>'
   ).join('');
+
+  // Solo en simulacro/cajón: botones Atrás / Siguiente bajo las opciones.
+  let actionsHTML = '';
+  if (manualNav) {
+    const hasSelection = chosen != null;
+    actionsHTML =
+      '<div class="exam-sim-actions">' +
+      '<button class="btn--sim-back" onclick="simBack()"' + (idx === 0 ? ' disabled' : '') + '>← Atrás</button>' +
+      '<button class="btn--sim-next" onclick="simNext()"' + (hasSelection ? '' : ' disabled') + '>Siguiente →</button>' +
+      '</div>';
+  }
 
   const body = document.getElementById('examBody');
   body.innerHTML =
     '<div class="exam-progress-dots">' + dots + '</div>' +
     '<p class="q__num">Pregunta ' + (idx+1) + ' de ' + qs.length + '</p>' +
     '<p class="q__text">' + escHtml(q.q) + '</p>' +
-    '<div class="opts">' + opts + '</div>';
+    '<div class="opts">' + opts + '</div>' +
+    actionsHTML;
 
   // Siempre al inicio del panel para que no haya restos visuales
   body.scrollTop = 0;
@@ -1251,12 +1290,29 @@ function renderExamQuestion() {
 
 function examAnswer(letter) {
   const idx = EXAM.current;
+  // Simulacro/cajón: marcar selección provisional (sin revelar correcta/incorrecta) sin avanzar.
+  // Va antes del guard para permitir cambiar una respuesta ya confirmada al volver atrás.
+  if (EXAM._isSim || EXAM._isCajon) {
+    EXAM._pendingAnswer = letter;
+    if (document.activeElement) document.activeElement.blur();
+    renderExamQuestion();
+    return;
+  }
   if (EXAM.answers[idx] !== undefined) return;
+  // Resto de modos: registrar y avanzar automáticamente como hasta ahora.
+  commitExamAnswer(letter, true);
+}
+
+// Guarda la respuesta y avanza (o finaliza). record=false omite recordAnswer (revisita en simulacro).
+function commitExamAnswer(letter, record) {
+  const idx = EXAM.current;
   EXAM.answers[idx] = letter;
-  const _q = EXAM.questions[idx];
-  const _grp = _q._group || state.group;
-  const _tid = _q._temaId !== undefined ? _q._temaId : state.temaId;
-  recordAnswer(_grp, _tid, _q, letter);
+  if (record) {
+    const _q = EXAM.questions[idx];
+    const _grp = _q._group || state.group;
+    const _tid = _q._temaId !== undefined ? _q._temaId : state.temaId;
+    recordAnswer(_grp, _tid, _q, letter);
+  }
   if (document.activeElement) document.activeElement.blur();
   if (idx + 1 < EXAM.questions.length) {
     EXAM.current++;
@@ -1264,6 +1320,26 @@ function examAnswer(letter) {
   } else {
     finishExam();
   }
+}
+
+// Simulacro: navegar a la pregunta anterior, descartando cualquier selección provisional.
+function simBack() {
+  if (EXAM.current === 0) return;
+  EXAM._pendingAnswer = null;
+  EXAM.current--;
+  renderExamQuestion();
+}
+
+// Simulacro: confirmar la selección y avanzar.
+function simNext() {
+  const idx = EXAM.current;
+  // Selección efectiva: la provisional o, si no se tocó nada al volver atrás, la ya confirmada.
+  const letter = EXAM._pendingAnswer != null ? EXAM._pendingAnswer : EXAM.answers[idx];
+  if (letter == null) return; // nada seleccionado
+  EXAM._pendingAnswer = null;
+  // En simulacro NO se registran estadísticas aquí: se guardan al finalizar (finishExam),
+  // permitiendo cambiar respuestas libremente con Atrás/Siguiente durante todo el examen.
+  commitExamAnswer(letter, false);
 }
 
 function finishExam() {
@@ -1328,6 +1404,75 @@ function finishExam() {
   // Guardar preguntas falladas para modo reintento
   EXAM.failedQuestions = qs.filter((q, i) => EXAM.answers[i] !== undefined && EXAM.answers[i] !== q.correct);
 
+  // Simulacro: las estadísticas se registran AQUÍ (no durante el examen) con la respuesta
+  // final de cada pregunta contestada, para que cambiar respuestas con Atrás/Siguiente cuente
+  // solo el estado final. Las no contestadas no se registran.
+  if (EXAM._isSim) {
+    qs.forEach((q, i) => {
+      const given = EXAM.answers[i];
+      if (given === undefined) return;
+      const grp = q._group || state.group;
+      const tid = q._temaId !== undefined ? q._temaId : state.temaId;
+      recordAnswer(grp, tid, q, given);
+    });
+  }
+
+  // Anti-repetición: registrar las preguntas usadas en este simulacro (q.n por tema).
+  if (EXAM._isSim) {
+    try {
+      const byTema = {};
+      qs.forEach(q => {
+        if (q._group == null || q._temaId == null) return;
+        const k = q._group + '_t' + q._temaId;
+        (byTema[k] = byTema[k] || { g: q._group, t: q._temaId, ns: [] }).ns.push(q.n);
+      });
+      Object.keys(byTema).forEach(k => {
+        const { g, t, ns } = byTema[k];
+        const key = 'fusion_sim_seen_' + g + '_t' + t;
+        let prev = [];
+        try { prev = JSON.parse(localStorage.getItem(key) || '[]'); if (!Array.isArray(prev)) prev = []; } catch(e) {}
+        ns.forEach(n => { if (!prev.includes(n)) prev.push(n); });
+        localStorage.setItem(key, JSON.stringify(prev));
+      });
+    } catch(e) {}
+  }
+
+  // Cajón de errores: en simulacro, cada pregunta fallada entra al cajón (o resetea aciertos a 0
+  // si ya estaba). Solo cuentan las contestadas mal (las no respondidas no entran).
+  if (EXAM._isSim) {
+    const cajon = readCajon();
+    qs.forEach((q, i) => {
+      const given = EXAM.answers[i];
+      if (given === undefined || given === q.correct) return;
+      const grp = q._group || state.group;
+      const tid = q._temaId !== undefined ? q._temaId : state.temaId;
+      cajon[CAJON_ITEM_KEY(grp, tid, q.n)] = { group: grp, temaId: tid, qn: q.n, aciertos: 0 };
+    });
+    writeCajon(cajon);
+  }
+
+  // Repaso del cajón: acierto → aciertos+1; cualquier otro caso → reset a 0. Sale al llegar a 3.
+  let cajonSalidas = 0;
+  if (EXAM._isCajon) {
+    const cajon = readCajon();
+    qs.forEach((q, i) => {
+      const grp = q._group || state.group;
+      const tid = q._temaId !== undefined ? q._temaId : state.temaId;
+      const k = CAJON_ITEM_KEY(grp, tid, q.n);
+      const entry = cajon[k];
+      if (!entry) return;
+      entry.aciertos = (EXAM.answers[i] === q.correct) ? (entry.aciertos || 0) + 1 : 0;
+      if (entry.aciertos >= 3) { delete cajon[k]; cajonSalidas++; }
+    });
+    writeCajon(cajon);
+  }
+
+  const cajonResultHTML = EXAM._isCajon
+    ? '<div class="cajon-result">' + (cajonSalidas > 0
+        ? '📦 ' + cajonSalidas + ' pregunta' + (cajonSalidas === 1 ? ' sale' : 's salen') + ' del cajón'
+        : 'Aún no ha salido ninguna pregunta del cajón') + '</div>'
+    : '';
+
   document.getElementById('examBody').innerHTML =
     '<div class="exam-results">' +
       '<div class="exam-res__score ' + (passed ? 'exam-res__score--pass' : 'exam-res__score--fail') + '">' +
@@ -1342,16 +1487,17 @@ function finishExam() {
         '<div class="exam-res__stat"><span class="exam-res__stat-n">' + n + '</span><span class="exam-res__stat-l">Total</span></div>' +
       '</div>' +
       '<div class="exam-res__time">\u23F1 Tiempo: <b>' + timeStr + '</b> ' + overtimeHTML + '</div>' +
+      cajonResultHTML +
       '<div class="exam-review">' + reviewHTML + '</div>' +
       '<button class="btn btn--exam-again" onclick="startExam()">\u21BA Nuevo examen</button>' +
-      (fallos > 0 ? '<button class="btn btn--retry-errors" onclick="retryErrors()">\uD83D\uDD01 Repasar ' + fallos + ' error' + (fallos > 1 ? 'es' : '') + '</button>' : '') +
+      (fallos > 0 && !EXAM._isCajon ? '<button class="btn btn--retry-errors" onclick="retryErrors()">\uD83D\uDD01 Repasar ' + fallos + ' error' + (fallos > 1 ? 'es' : '') + '</button>' : '') +
     '</div>';
 
   // Scroll al inicio para que se vea el % desde arriba
   document.getElementById('examBody').scrollTop = 0;
   // Fix: actualizar título según modo
   const titleEl2 = document.querySelector('.exam-title');
-  if (titleEl2) titleEl2.textContent = EXAM._isSim ? '🧩 Simulacro' : (EXAM._isFav ? '❤️ Repaso de marcadas' : (EXAM._isRetry ? '🔁 Repaso de errores' : (EXAM._isWeak ? '🎯 Repaso · puntos débiles' : '⏱ Examen cronometrado')));
+  if (titleEl2) titleEl2.textContent = EXAM._isCajon ? '📦 Repaso del cajón' : (EXAM._isSim ? '🧩 Simulacro' : (EXAM._isFav ? '❤️ Repaso de marcadas' : (EXAM._isRetry ? '🔁 Repaso de errores' : (EXAM._isWeak ? '🎯 Repaso · puntos débiles' : '⏱ Examen cronometrado'))));
   // Fix: botón 'Nuevo examen' no tiene sentido en modo débil
   if (EXAM._isWeak) {
     const btn = document.querySelector('.btn--exam-again');
@@ -1365,6 +1511,12 @@ function finishExam() {
     const btn = document.querySelector('.btn--exam-again');
     if (btn) { btn.textContent = '🧩 Nuevo simulacro'; btn.onclick = () => { closeExam(); openSim(); }; }
   }
+  if (EXAM._isCajon) {
+    const btn = document.querySelector('.btn--exam-again');
+    if (btn) { btn.textContent = '📦 Nuevo repaso del cajón'; btn.onclick = () => { closeExam(); openCajon(); }; }
+  }
+  // Refrescar el badge del cajón (puede haber cambiado al añadir/sacar preguntas)
+  updateCajonBtn();
 }
 
 function startFavExam() {
@@ -1499,10 +1651,46 @@ async function launchSim() {
     return;
   }
 
-  // Mezclar y recortar al número seleccionado
-  const shuffled = shuffleArray(allQ.slice());
-  const pick     = Math.min(SIM.nQuestions, shuffled.length);
-  const final    = shuffled.slice(0, pick);
+  // ─── Anti-repetición: rotar preguntas entre simulacros ────────────────────
+  // Registro por tema de los q.n ya vistos en simulacros anteriores.
+  const SEEN_KEY = (g, t) => 'fusion_sim_seen_' + g + '_t' + t;
+  const readSeen = (g, t) => {
+    try { const a = JSON.parse(localStorage.getItem(SEEN_KEY(g, t)) || '[]'); return Array.isArray(a) ? a : []; }
+    catch(e) { return []; }
+  };
+  // Cache de vistos por tema; posición en el array = antigüedad (0 = más antiguo).
+  const seenCache = {};
+  const seenPos = (q) => {
+    const k = q._group + '_t' + q._temaId;
+    if (!(k in seenCache)) seenCache[k] = readSeen(q._group, q._temaId);
+    return seenCache[k].indexOf(q.n); // -1 si no visto
+  };
+
+  let unseen = [];
+  let seen   = [];
+  allQ.forEach(q => { (seenPos(q) === -1 ? unseen : seen).push(q); });
+
+  const pick = Math.min(SIM.nQuestions, allQ.length);
+
+  // Si no queda ninguna sin ver para los temas seleccionados, reiniciar su registro.
+  if (unseen.length === 0) {
+    SIM.selected.forEach(key => {
+      const [g, t] = key.split('_');
+      try { localStorage.removeItem(SEEN_KEY(g, Number(t))); } catch(e) {}
+    });
+    showToast('Has completado todas las preguntas de estos temas. ¡Empezamos de nuevo!', 4000);
+    unseen = allQ.slice();
+    seen   = [];
+  }
+
+  // Rellenar primero con no vistas barajadas; completar con vistas (más antiguas primero).
+  let final = shuffleArray(unseen).slice(0, pick);
+  if (final.length < pick) {
+    const seenOldestFirst = seen.slice().sort((a, b) => seenPos(a) - seenPos(b));
+    final = final.concat(seenOldestFirst.slice(0, pick - final.length));
+  }
+  // Barajar la selección final para que el orden de presentación no sea predecible.
+  final = shuffleArray(final);
 
   closeSim();
 
@@ -1516,11 +1704,147 @@ async function launchSim() {
   EXAM._isRetry    = false;
   EXAM._isFav      = false;
   EXAM._isSim      = true;
+  EXAM._isCajon    = false;
+  EXAM._pendingAnswer = null;
 
   const titleEl = document.querySelector('.exam-title');
   if (titleEl) titleEl.textContent = '\uD83E\uDDE9 Simulacro \u00B7 ' + pick + ' preguntas';
   const timerEl = document.getElementById('examTimer');
   if (timerEl) timerEl.textContent = String(SIM.minutes).padStart(2,'0') + ':00';
+
+  lockScroll();
+  document.getElementById('examOverlay').classList.add('open');
+  clearInterval(EXAM.timerInterval);
+  EXAM.timerInterval = setInterval(examTick, 1000);
+  renderExamQuestion();
+}
+
+// ─── CAJÓN DE ERRORES DEL SIMULACRO ─────────────────────────────────────────────
+// Clave fusion_cajon → { [group_temaId_qn]: { group, temaId, qn, aciertos } }
+// Entra al fallar en simulacro; sale al acertar 3 veces seguidas en el repaso del cajón.
+const CAJON_KEY = 'fusion_cajon';
+const CAJON_ITEM_KEY = (g, t, qn) => g + '_' + t + '_q' + qn;
+const CAJON = { nQuestions: 10 };
+
+function readCajon() {
+  try {
+    const o = JSON.parse(localStorage.getItem(CAJON_KEY) || '{}');
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch(e) { return {}; }
+}
+function writeCajon(obj) {
+  try { localStorage.setItem(CAJON_KEY, JSON.stringify(obj)); } catch(e) {}
+}
+function cajonCount() { return Object.keys(readCajon()).length; }
+
+// Badge del botón de la subbar (número de preguntas; atenuado si está vacío)
+function updateCajonBtn() {
+  const n = cajonCount();
+  const badge = document.getElementById('cajonBadge');
+  const btn   = document.getElementById('subbarCajon');
+  if (badge) { badge.textContent = n > 0 ? n : ''; badge.style.display = n > 0 ? '' : 'none'; }
+  if (btn) btn.classList.toggle('subbar__btn--empty', n === 0);
+}
+
+function openCajon() {
+  renderCajonBody();
+  document.getElementById('cajonOverlay').classList.add('open');
+  lockScroll();
+}
+function closeCajon() {
+  document.getElementById('cajonOverlay').classList.remove('open');
+  unlockScroll();
+}
+
+function renderCajonBody() {
+  const items = Object.values(readCajon());
+  const N = items.length;
+
+  const titleEl = document.getElementById('cajonTitle');
+  if (titleEl) titleEl.textContent = '📦 Cajón de errores · ' + N + ' pregunta' + (N === 1 ? '' : 's');
+
+  const body   = document.getElementById('cajonBody');
+  const footer = document.getElementById('cajonFooter');
+
+  if (N === 0) {
+    body.innerHTML = '<p class="cajon-empty">El cajón está vacío. Los errores del simulacro aparecerán aquí.</p>';
+    if (footer) footer.innerHTML = '';
+    return;
+  }
+
+  body.innerHTML =
+    '<p class="sim-section-label">📦 Preguntas falladas en simulacros</p>'
+    + '<p class="cajon-info">Acierta una pregunta 3 veces seguidas en el repaso para sacarla del cajón.</p>';
+
+  const nOpts = [5, 10, 20].map(v =>
+    '<option value="' + v + '"' + (CAJON.nQuestions === v ? ' selected' : '') + '>' + v + ' preguntas</option>'
+  ).join('') + '<option value="all"' + (CAJON.nQuestions === 'all' ? ' selected' : '') + '>Todas (' + N + ')</option>';
+
+  if (footer) footer.innerHTML =
+    '<div class="sim-options">'
+    + '<label class="sim-opt-label">Nº preguntas<select class="sim-select" onchange="CAJON.nQuestions = this.value === \'all\' ? \'all\' : Number(this.value)">' + nOpts + '</select></label>'
+    + '</div>'
+    + '<button class="btn btn--sim-launch" onclick="launchCajon()">▶ Iniciar repaso</button>';
+}
+
+async function launchCajon() {
+  const items = Object.values(readCajon());
+  if (items.length === 0) return;
+  document.getElementById('cajonBody').innerHTML = '<p class="sim-loading">Cargando preguntas…</p>';
+
+  // Agrupar por tema para cargar cada tema una sola vez
+  const temas = {};
+  items.forEach(it => {
+    const k = it.group + '_' + it.temaId;
+    (temas[k] = temas[k] || { group: it.group, temaId: it.temaId, qns: [] }).qns.push(it.qn);
+  });
+
+  const keys = Object.keys(temas);
+  let allQ = [];
+  try {
+    const results = await Promise.all(keys.map(k => loadTheme(temas[k].group, Number(temas[k].temaId))));
+    results.forEach((qs, i) => {
+      const { group, temaId, qns } = temas[keys[i]];
+      qs.forEach(q => {
+        if (qns.includes(q.n)) allQ.push(Object.assign({}, q, { _group: group, _temaId: Number(temaId) }));
+      });
+    });
+  } catch(e) {
+    showToast('Error al cargar las preguntas del cajón', 3000);
+    renderCajonBody();
+    return;
+  }
+
+  if (allQ.length === 0) {
+    showToast('No se pudieron cargar las preguntas del cajón', 3000);
+    renderCajonBody();
+    return;
+  }
+
+  const count = CAJON.nQuestions === 'all' ? allQ.length : Math.min(CAJON.nQuestions, allQ.length);
+  const final = shuffleArray(allQ).slice(0, count);
+
+  closeCajon();
+
+  // Reutilizar el motor del examen (navegación manual como el simulacro)
+  EXAM.questions   = final;
+  EXAM.answers     = {};
+  EXAM.current     = 0;
+  EXAM.startTime   = Date.now();
+  EXAM.TOTAL_SECS  = Math.max(final.length * 60, 300);
+  EXAM._isWeak     = false;
+  EXAM._isRetry    = false;
+  EXAM._isFav      = false;
+  EXAM._isSim      = false;
+  EXAM._isCajon    = true;
+  EXAM._pendingAnswer = null;
+
+  const titleEl = document.querySelector('.exam-title');
+  if (titleEl) titleEl.textContent = '📦 Repaso del cajón';
+  const timerEl = document.getElementById('examTimer');
+  const mins = Math.floor(EXAM.TOTAL_SECS / 60);
+  const secs = String(EXAM.TOTAL_SECS % 60).padStart(2, '0');
+  if (timerEl) timerEl.textContent = mins + ':' + secs;
 
   lockScroll();
   document.getElementById('examOverlay').classList.add('open');
@@ -1566,6 +1890,7 @@ function closeExam() {
   EXAM._isRetry   = false;
   EXAM._isFav     = false;
   EXAM._isSim     = false;
+  EXAM._isCajon   = false;
   const titleEl = document.querySelector('.exam-title');
   if (titleEl) titleEl.textContent = '⏱ Examen cronometrado';
 }

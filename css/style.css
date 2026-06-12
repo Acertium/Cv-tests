@@ -582,6 +582,61 @@ body.scroll-locked { overflow: hidden; position: fixed; width: 100%; left: 0; ri
 }
 .exam-opt__text { flex: 1; line-height: 1.4; }
 
+/* ── SIMULACRO: selección provisional + confirmación ─────────────────── */
+/* Resaltado suave de la opción tocada (sin revelar correcta/incorrecta) */
+.exam-opt--chosen,
+.exam-opt--chosen:hover,
+.exam-opt--chosen:focus,
+.exam-opt--chosen:focus-visible,
+.exam-opt--chosen:focus-within {
+  background: #eef2ff;
+  border-color: var(--accent);
+}
+.exam-opt--chosen .exam-opt__letter {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.exam-sim-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
+}
+.btn--sim-back,
+.btn--sim-next {
+  flex: 1;
+  padding: 13px;
+  border-radius: 10px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  font-size: .9rem;
+  font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: opacity .15s, background .15s, border-color .15s;
+}
+.btn--sim-back {
+  background: var(--card);
+  border: 1.5px solid var(--border);
+  color: var(--text);
+}
+.btn--sim-back:hover:not(:disabled)  { border-color: var(--chip-act); }
+.btn--sim-back:active:not(:disabled) { background: var(--bg); }
+.btn--sim-back:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.btn--sim-next {
+  background: var(--accent);
+  border: 1.5px solid var(--accent);
+  color: #fff;
+}
+.btn--sim-next:hover:not(:disabled)  { opacity: .87; }
+.btn--sim-next:active:not(:disabled) { opacity: .75; }
+.btn--sim-next:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+
 /* ── RESULTADOS ─────────────────────────────────────────────────────── */
 .exam-results { display: flex; flex-direction: column; gap: 18px; }
 
@@ -1198,6 +1253,21 @@ body.scroll-locked { overflow: hidden; position: fixed; width: 100%; left: 0; ri
   color: var(--muted); font-size: .9rem;
 }
 
+/* ── CAJÓN DE ERRORES ───────────────────────────────────────────────────── */
+.cajon-empty {
+  text-align: center; padding: 36px 16px;
+  color: var(--muted); font-size: .9rem; line-height: 1.5;
+}
+.cajon-info {
+  margin: 4px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45;
+}
+.cajon-result {
+  text-align: center; padding: 12px 14px; border-radius: 10px;
+  background: var(--ok-bg); border: 1.5px solid var(--ok); color: var(--ok);
+  font-size: .9rem; font-weight: 600;
+}
+html.dark .cajon-result { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+
 /* ── WIDGET RACHA DIARIA ────────────────────────────────────────────────── */
 .streak {
   display: flex;
@@ -1310,6 +1380,13 @@ html.dark .picker-chip--active { background: #f3f4f6; color: #111827; border-col
 /* Exam overlay */
 html.dark .exam-overlay { background: rgba(0,0,0,.6); }
 html.dark .exam-sheet { background: var(--card); }
+html.dark .exam-opt--chosen,
+html.dark .exam-opt--chosen:hover,
+html.dark .exam-opt--chosen:focus,
+html.dark .exam-opt--chosen:focus-visible,
+html.dark .exam-opt--chosen:focus-within { background: #1e3a5f; border-color: var(--accent); color: #93c5fd; }
+html.dark .btn--sim-back { background: var(--card); border-color: var(--border); color: var(--text); }
+html.dark .btn--sim-next { background: var(--accent); border-color: var(--accent); color: #fff; }
 html.dark .exam-review-item { background: var(--card); border-color: var(--border); }
 html.dark .exam-review-opt { background: var(--bg); border-color: var(--border); color: var(--text); }
 html.dark .exam-review-opt--correct { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
@@ -1404,6 +1481,15 @@ html.dark .dark-switch input:checked + .dark-switch__track::after { background: 
 }
 .subbar__btn:hover { border-color: var(--accent); background: #eff6ff; color: var(--accent); }
 .subbar__btn--warn { border-color: #f59e0b !important; color: #92400e; background: #fef3c7; }
+/* Botón cajón vacío: visible pero atenuado */
+.subbar__btn--empty { opacity: .5; }
+/* Badge numérico del cajón */
+.subbar__badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 17px; height: 17px; padding: 0 5px;
+  border-radius: 9px; background: var(--accent); color: #fff;
+  font-size: .68rem; font-weight: 700; line-height: 1;
+}
 html.dark .subbar { background: #1f2937; border-color: #374151; }
 html.dark .subbar__btn { background: #111827; border-color: #374151; color: var(--text); }
 html.dark .subbar__btn:hover { background: #1e3a5f; border-color: var(--accent); color: #93c5fd; }
