@@ -778,8 +778,28 @@ function renderQuestion() {
 }
 
 // ─── MODAL DE EDICIÓN ──────────────────────────────────────────────────────────
+// Resuelve la fuente de verdad del idx según el modo activo. En simulacro/cajón
+// la pregunta vive en EXAM.questions y lleva su tema de origen en _group/_temaId;
+// en estudio vive en state.questions y el tema es state.group/state.temaId.
+// Así la clave fusion_edit_* siempre usa el tema REAL de la pregunta editada.
+function editContext(idx) {
+  const examEl   = document.getElementById('examOverlay');
+  const examOpen = examEl && examEl.classList.contains('open');
+  if (examOpen && (EXAM._isSim || EXAM._isCajon)) {
+    const q = EXAM.questions[idx];
+    return {
+      store:  'exam',
+      q,
+      group:  q && q._group  != null ? q._group  : state.group,
+      temaId: q && q._temaId != null ? q._temaId : state.temaId,
+    };
+  }
+  return { store: 'study', q: state.questions[idx], group: state.group, temaId: state.temaId };
+}
+
 function openEditModal(idx) {
-  const q = state.questions[idx];
+  const ctx = editContext(idx);
+  const q   = ctx.q;
   if (!q) return;
 
   // Construir filas de opciones
@@ -814,7 +834,7 @@ function openEditModal(idx) {
 
         <div class="edit-actions">
           <button class="edit-btn edit-btn--cancel" onclick="closeEditModal()">Cancelar</button>
-          ${localStorage.getItem(EDIT_KEY(state.group, state.temaId, q.n))
+          ${localStorage.getItem(EDIT_KEY(ctx.group, ctx.temaId, q.n))
             ? `<button class="edit-btn edit-btn--delete" onclick="deleteQuestionEdit(${idx})">🗑 Quitar edición</button>`
             : ''}
           <button class="edit-btn edit-btn--save" onclick="saveEditFromModal(${idx})">Guardar cambios</button>
@@ -835,7 +855,8 @@ function closeEditModal() {
 }
 
 function saveEditFromModal(idx) {
-  const q = state.questions[idx];
+  const ctx = editContext(idx);
+  const q   = ctx.q;
   if (!q) return;
 
   const newQ    = document.getElementById('edit-q').value.trim();
@@ -856,45 +877,55 @@ function saveEditFromModal(idx) {
     why:     { [newCorrect]: newWhy }
   };
 
-  // Guardar en localStorage
-  saveQuestionEdit(state.group, state.temaId, q.n, edited);
+  // Guardar en localStorage con el tema REAL de origen (estudio o simulacro/cajón)
+  saveQuestionEdit(ctx.group, ctx.temaId, q.n, edited);
 
-  // Actualizar state.questions en memoria
-  state.questions[idx] = Object.assign({}, q, edited);
+  // Actualizar la pregunta en memoria del modo activo. En el simulacro/cajón
+  // q ya arrastra _group/_temaId, que Object.assign preserva al fusionar.
+  const merged = Object.assign({}, q, edited);
+  if (ctx.store === 'exam') EXAM.questions[idx] = merged;
+  else                      state.questions[idx] = merged;
 
-  // Limpiar caché para que al recargar tema se lean los overrides
-  const cacheKey = `${state.group}_${state.temaId}`;
-  delete dataCache[cacheKey];
+  // Limpiar caché del tema para que cualquier otro modo (estudio, examen,
+  // puntos débiles, favoritas, simulacro, cajón) lea el override al recargar.
+  delete dataCache[`${ctx.group}_${ctx.temaId}`];
 
   closeEditModal();
-  renderQuestion();
+  // Re-render sin tocar el estado del examen (respuesta pendiente, temporizador, posición).
+  if (ctx.store === 'exam') renderExamQuestion();
+  else                      renderQuestion();
   showToast('✓ Pregunta guardada', 2000);
 }
 
 function deleteQuestionEdit(idx) {
-  const q = state.questions[idx];
+  const ctx = editContext(idx);
+  const q   = ctx.q;
   if (!q) return;
   try {
-    localStorage.removeItem(EDIT_KEY(state.group, state.temaId, q.n));
-    let editIdx = JSON.parse(localStorage.getItem(EDIT_INDEX_KEY(state.group, state.temaId)) || '[]');
+    localStorage.removeItem(EDIT_KEY(ctx.group, ctx.temaId, q.n));
+    let editIdx = JSON.parse(localStorage.getItem(EDIT_INDEX_KEY(ctx.group, ctx.temaId)) || '[]');
     editIdx = editIdx.filter(n => n !== q.n);
-    localStorage.setItem(EDIT_INDEX_KEY(state.group, state.temaId), JSON.stringify(editIdx));
+    localStorage.setItem(EDIT_INDEX_KEY(ctx.group, ctx.temaId), JSON.stringify(editIdx));
   } catch(e){}
 
   // Restaurar la pregunta original desde el archivo JS (sin override)
-  const cacheKey = `${state.group}_${state.temaId}`;
-  const varName  = state.group === 'meta'
-    ? `Q${String(state.temaId).padStart(2,'0')}`
-    : `Q${state.temaId}`;
+  const varName  = ctx.group === 'meta'
+    ? `Q${String(ctx.temaId).padStart(2,'0')}`
+    : `Q${ctx.temaId}`;
   const originalArr = window[varName] || [];
   const originalQ   = originalArr.find(item => item.n === q.n);
-  if (originalQ) state.questions[idx] = originalQ;
+  if (originalQ) {
+    // En simulacro/cajón hay que re-adjuntar los metadatos de origen que el array original no lleva.
+    if (ctx.store === 'exam') EXAM.questions[idx] = Object.assign({}, originalQ, { _group: ctx.group, _temaId: ctx.temaId });
+    else                      state.questions[idx] = originalQ;
+  }
 
   // Limpiar caché para que próximas cargas no usen versión editada
-  delete dataCache[cacheKey];
+  delete dataCache[`${ctx.group}_${ctx.temaId}`];
 
   closeEditModal();
-  renderQuestion();
+  if (ctx.store === 'exam') renderExamQuestion();
+  else                      renderQuestion();
   showToast('Edición eliminada — pregunta restaurada', 2500);
 }
 
@@ -1276,10 +1307,28 @@ function renderExamQuestion() {
       '</div>';
   }
 
+  // Solo en simulacro: botón de editar (mismo aspecto/posición que en estudio).
+  // Usa el tema REAL de la pregunta (_group/_temaId) para detectar si está editada.
+  let numHTML = '<p class="q__num">Pregunta ' + (idx+1) + ' de ' + qs.length + '</p>';
+  if (EXAM._isSim) {
+    const grp = q._group  != null ? q._group  : state.group;
+    const tid = q._temaId != null ? q._temaId : state.temaId;
+    const hasEdit = !!localStorage.getItem(EDIT_KEY(grp, tid, q.n));
+    numHTML =
+      '<div class="q__header">' + numHTML +
+        '<div class="q__header-actions">' +
+          '<button class="btn--edit' + (hasEdit ? ' btn--edit--modified' : '') + '" ' +
+            'onclick="openEditModal(' + idx + ')" title="Editar pregunta">✏️' +
+            (hasEdit ? ' <span class="edit-badge">Editada</span>' : '') +
+          '</button>' +
+        '</div>' +
+      '</div>';
+  }
+
   const body = document.getElementById('examBody');
   body.innerHTML =
     '<div class="exam-progress-dots">' + dots + '</div>' +
-    '<p class="q__num">Pregunta ' + (idx+1) + ' de ' + qs.length + '</p>' +
+    numHTML +
     '<p class="q__text">' + escHtml(q.q) + '</p>' +
     '<div class="opts">' + opts + '</div>' +
     actionsHTML;
@@ -1451,6 +1500,24 @@ function finishExam() {
     writeCajon(cajon);
   }
 
+  // Dominio: en simulacro, por cada pregunta CONTESTADA, acierto → aciertos+1 (racha de
+  // consecutivos); fallo → reset a 0 (rompe la racha; también re-habilita una dominada que
+  // hubiera reaparecido). Al alcanzar el umbral queda dominada y launchSim() la excluye.
+  if (EXAM._isSim) {
+    const mastery = readMastery();
+    qs.forEach((q, i) => {
+      const given = EXAM.answers[i];
+      if (given === undefined) return;
+      const grp = q._group || state.group;
+      const tid = q._temaId !== undefined ? q._temaId : state.temaId;
+      const k = CAJON_ITEM_KEY(grp, tid, q.n);
+      const entry = mastery[k] || { group: grp, temaId: tid, qn: q.n, aciertos: 0 };
+      entry.aciertos = (given === q.correct) ? (entry.aciertos || 0) + 1 : 0;
+      mastery[k] = entry;
+    });
+    writeMastery(mastery);
+  }
+
   // Repaso del cajón: acierto → aciertos+1; cualquier otro caso → reset a 0. Sale al llegar a 3.
   let cajonSalidas = 0;
   if (EXAM._isCajon) {
@@ -1599,6 +1666,21 @@ function renderSimBody() {
   ).join('');
 
   const nSel = SIM.selected.size;
+
+  // Contador de preguntas dominadas (excluidas del simulacro). Cuenta las de los temas
+  // seleccionados; si no hay ninguno seleccionado, muestra el total dominado.
+  const mastery = readMastery();
+  let masteredN = 0;
+  Object.keys(mastery).forEach(k => {
+    const e = mastery[k];
+    if (!e || (e.aciertos || 0) < MASTERY_THRESHOLD) return;
+    if (nSel === 0 || SIM.selected.has(e.group + '_' + e.temaId)) masteredN++;
+  });
+  const masteryNote = masteredN > 0
+    ? '<p class="sim-mastery-note">🏆 ' + masteredN + ' pregunta' + (masteredN === 1 ? '' : 's')
+      + ' dominada' + (masteredN === 1 ? '' : 's') + ' (no aparecerán)</p>'
+    : '';
+
   // Chips en el body (scrolleable)
   document.getElementById('simBody').innerHTML =
     '<p class="sim-section-label">\uD83D\uDCDA Libro Meta</p>'
@@ -1613,6 +1695,7 @@ function renderSimBody() {
     + '<label class="sim-opt-label">N\u00ba preguntas<select class="sim-select" onchange="SIM.nQuestions=Number(this.value)">' + nOpts + '</select></label>'
     + '<label class="sim-opt-label">Tiempo<select class="sim-select" onchange="SIM.minutes=Number(this.value)">' + tOpts + '</select></label>'
     + '</div>'
+    + masteryNote
     + '<button class="btn btn--sim-launch" onclick="launchSim()" '
     + (nSel === 0 ? 'disabled' : '') + '>'
     + (nSel === 0 ? 'Selecciona al menos un tema' : '\u25B6 Iniciar con ' + nSel + ' tema' + (nSel > 1 ? 's' : ''))
@@ -1647,6 +1730,17 @@ async function launchSim() {
 
   if (allQ.length === 0) {
     showToast('No se pudieron cargar las preguntas', 3000);
+    renderSimBody();
+    return;
+  }
+
+  // ─── Excluir preguntas dominadas (3 aciertos seguidos en simulacros) ──────
+  // Se filtran ANTES de la anti-repetición para que esta opere solo sobre el pool
+  // jugable. Si tras excluirlas no queda ninguna, no se lanza el examen.
+  const mastered = masteredKeySet();
+  allQ = allQ.filter(q => !mastered.has(CAJON_ITEM_KEY(q._group, q._temaId, q.n)));
+  if (allQ.length === 0) {
+    showToast('¡Dominas todas las preguntas de estos temas! Reinicia el progreso para repasarlas de nuevo.', 5000);
     renderSimBody();
     return;
   }
@@ -1736,6 +1830,31 @@ function writeCajon(obj) {
   try { localStorage.setItem(CAJON_KEY, JSON.stringify(obj)); } catch(e) {}
 }
 function cajonCount() { return Object.keys(readCajon()).length; }
+
+// ─── DOMINIO EN SIMULACRO (descarte inverso al cajón) ───────────────────────────
+// Clave fusion_sim_mastery → { [group_temaId_qn]: { group, temaId, qn, aciertos } }
+// Reutiliza CAJON_ITEM_KEY para la clave de cada pregunta. Una pregunta acertada 3
+// veces seguidas en simulacros queda "dominada" y se excluye de futuros simulacros.
+// Independiente del cajón de errores (fusion_cajon).
+const MASTERY_KEY = 'fusion_sim_mastery';
+const MASTERY_THRESHOLD = 3;
+
+function readMastery() {
+  try {
+    const o = JSON.parse(localStorage.getItem(MASTERY_KEY) || '{}');
+    return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {};
+  } catch(e) { return {}; }
+}
+function writeMastery(obj) {
+  try { localStorage.setItem(MASTERY_KEY, JSON.stringify(obj)); } catch(e) {}
+}
+// Set de claves dominadas (aciertos >= umbral) para filtrar el pool de un tirón.
+function masteredKeySet() {
+  const m = readMastery();
+  const set = new Set();
+  Object.keys(m).forEach(k => { if ((m[k] && m[k].aciertos || 0) >= MASTERY_THRESHOLD) set.add(k); });
+  return set;
+}
 
 // Badge del botón de la subbar (número de preguntas; atenuado si está vacío)
 function updateCajonBtn() {

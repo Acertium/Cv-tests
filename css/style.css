@@ -1248,6 +1248,10 @@ body.scroll-locked { overflow: hidden; position: fixed; width: 100%; left: 0; ri
 }
 .btn--sim-launch:disabled { opacity: .45; cursor: not-allowed; }
 .btn--sim-launch:not(:disabled):hover { opacity: .88; }
+.sim-mastery-note {
+  margin: 0 0 10px; text-align: center;
+  color: var(--muted); font-size: .78rem; font-weight: 600; line-height: 1.4;
+}
 .sim-loading {
   text-align: center; padding: 40px 0;
   color: var(--muted); font-size: .9rem;
