@@ -638,15 +638,21 @@ function renderHero() {
   const catalog = state.group === 'meta' ? LIBRO_META : SERIE_OP;
   const t  = catalog[state.temaId];
   const qs = state.questions;
-  const answered = Object.keys(state.answers).length;
-  const correct  = Object.entries(state.answers).filter(([i, ans]) => ans === qs[i]?.correct).length;
+  // Las ignoradas (🚫) NO cuentan para el cómputo del tema: ni en el total, ni en
+  // los contadores, ni en la nota. Todo se calcula sobre las preguntas activas.
+  const ignSet   = getIgnoredSet(state.group, state.temaId);
+  const isActive = (i) => !ignSet.has(qs[i]?.n);
+  const total    = qs.reduce((a, q) => a + (ignSet.has(q.n) ? 0 : 1), 0);
+  const activeAnswers = Object.entries(state.answers).filter(([i]) => isActive(i));
+  const answered = activeAnswers.length;
+  const correct  = activeAnswers.filter(([i, ans]) => ans === qs[i]?.correct).length;
   const failed   = answered - correct;
-  const pct      = qs.length ? Math.round(answered / qs.length * 100) : 0;
+  const pct      = total ? Math.round(answered / total * 100) : 0;
   const grpBadge = state.group === 'meta' ? '📗 Libro Meta' : '📘 Serie Oposiciones';
 
-  // Nota del tema: solo cuando todas las preguntas estén respondidas
-  const allAnswered = qs.length > 0 && answered === qs.length;
-  const themeRaw    = allAnswered ? ((correct - failed * 0.25) / qs.length) * 10 : null;
+  // Nota del tema: solo cuando TODAS las preguntas NO ignoradas estén respondidas.
+  const allAnswered = total > 0 && answered === total;
+  const themeRaw    = allAnswered ? ((correct - failed * 0.25) / total) * 10 : null;
   const themeScore  = themeRaw !== null ? Math.max(0, Math.round(themeRaw * 100) / 100) : null;
   const themePassed = themeScore !== null && themeScore >= 5;
   const themeStr    = themeScore !== null ? themeScore.toFixed(2).replace('.', ',') : '--,--';
@@ -664,7 +670,7 @@ function renderHero() {
       <div class="stat"><span class="stat__n">${answered}</span><span class="stat__l">Contestadas</span></div>
       <div class="stat"><span class="stat__n stat__n--ok">${correct}</span><span class="stat__l">Acertadas</span></div>
       <div class="stat"><span class="stat__n stat__n--err">${failed}</span><span class="stat__l">Falladas</span></div>
-      <div class="stat"><span class="stat__n">${qs.length}</span><span class="stat__l">Total</span></div>
+      <div class="stat"><span class="stat__n">${total}</span><span class="stat__l">Total</span></div>
       <div class="theme-score ${themeClass}">
         <span class="theme-score__n">${themeStr}</span>
         <span class="theme-score__l">Nota</span>
@@ -742,6 +748,8 @@ function toggleIgnored(group, temaId, qn) {
       localStorage.setItem(IGN_INDEX(group, temaId), JSON.stringify(idx));
       showToast('🚫 Pregunta ignorada', 1500);
     }
+    // El hero (total, contadores y nota) depende de las ignoradas → recalcular.
+    renderHero();
     renderQuestion();
   } catch(e) {}
 }
@@ -776,10 +784,15 @@ function renderQuestion() {
 
   const favActive = isFav(state.group, state.temaId, q.n);
   const ignActive = isIgnored(state.group, state.temaId, q.n);
+  // ← Anterior / Siguiente → saltan las ignoradas (🚫) y se detienen en la
+  // siguiente NO ignorada. Si no queda ninguna en esa dirección (todas las
+  // restantes están ignoradas o es principio/fin real), el botón se deshabilita.
+  const prevDisabled = nextActiveIdx(idx, -1) === -1;
+  const nextDisabled = nextActiveIdx(idx, +1) === -1;
   document.getElementById('nav').innerHTML = `
-    <button class="btn btn--nav" onclick="goTo(${idx-1})" ${idx===0?'disabled':''}>← Anterior</button>
+    <button class="btn btn--nav" onclick="goStep(-1)" ${prevDisabled?'disabled':''}>← Anterior</button>
     <button class="btn btn--index" onclick="toggleIndex()">⊞ ${idx+1}/${qs.length}</button>
-    <button class="btn btn--nav" onclick="goTo(${idx+1})" ${idx===qs.length-1?'disabled':''}>Siguiente →</button>`;
+    <button class="btn btn--nav" onclick="goStep(1)" ${nextDisabled?'disabled':''}>Siguiente →</button>`;
 
   const opts = ['a','b','c','d'];
   let optHTML = opts.map(letter => {
@@ -997,17 +1010,40 @@ function goTo(idx) {
   document.getElementById('card').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
+// Siguiente índice NO ignorado (🚫) a partir de `from` en la dirección `dir`
+// (+1 = adelante, -1 = atrás). Devuelve -1 si no hay ninguno (fin/principio
+// efectivo). Lo usan ← Anterior / Siguiente → vía goStep. goTo (salto directo
+// desde un chip del índice) NO salta: por eso un chip es la única forma de entrar
+// en una pregunta ignorada para revisarla o desmarcarla.
+function nextActiveIdx(from, dir) {
+  const qs = state.questions;
+  for (let i = from + dir; i >= 0 && i < qs.length; i += dir) {
+    if (!isIgnored(state.group, state.temaId, qs[i].n)) return i;
+  }
+  return -1;
+}
+function goStep(dir) {
+  const next = nextActiveIdx(state.current, dir);
+  if (next !== -1) goTo(next);
+}
+
 // ─── ÍNDICE MODAL ──────────────────────────────────────────────────────────────
 function toggleIndex() {
   const existing = document.getElementById('idx-modal');
   if (existing) { existing.remove(); return; }
 
   const qs = state.questions;
+  const ignSet = getIgnoredSet(state.group, state.temaId);
   const cells = qs.map((q, i) => {
     const ans = state.answers[i];
+    const ignored = ignSet.has(q.n);
     let cls = 'idx-cell';
-    if (ans) cls += (ans === q.correct ? ' idx-cell--ok' : ' idx-cell--err');
-    return `<button class="${cls}" onclick="goTo(${i});document.getElementById('idx-modal').remove()">${q.n}</button>`;
+    // Ignorada = estado visual propio (🚫), distinto de vista/no vista/ok/err.
+    // El chip sigue siendo pulsable (única vía de entrar a una ignorada).
+    if (ignored) cls += ' idx-cell--ignored';
+    else if (ans) cls += (ans === q.correct ? ' idx-cell--ok' : ' idx-cell--err');
+    const ban = ignored ? '<span class="idx-cell__ban">🚫</span>' : '';
+    return `<button class="${cls}" onclick="goTo(${i});document.getElementById('idx-modal').remove()">${q.n}${ban}</button>`;
   }).join('');
 
   const modal = document.createElement('div');

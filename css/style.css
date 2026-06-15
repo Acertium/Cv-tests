@@ -284,6 +284,7 @@ html.dark .topbar__menu { background: #374151; border-color: #4b5563; color: var
   gap: 6px; padding: 16px;
 }
 .idx-cell {
+  position: relative;
   aspect-ratio: 1; border-radius: 8px;
   border: 1.5px solid var(--border);
   background: var(--card);
@@ -295,6 +296,13 @@ html.dark .topbar__menu { background: #374151; border-color: #4b5563; color: var
 .idx-cell:hover  { border-color: var(--text); }
 .idx-cell--ok    { background: var(--ok-bg);  border-color: var(--ok);  color: #16a34a; }
 .idx-cell--err   { background: var(--err-bg); border-color: var(--err); color: #dc2626; }
+/* Ignorada (🚫): número atenuado + borde discontinuo + badge prohibido en esquina. */
+.idx-cell--ignored { background: var(--card); border-style: dashed; border-color: var(--border); color: var(--muted); opacity: .6; }
+.idx-cell__ban {
+  position: absolute; top: -5px; right: -5px;
+  font-size: .72rem; line-height: 1;
+  pointer-events: none;
+}
 
 /* ── PICKER OVERLAY ────────────────────────────────────────────────── */
 .picker-overlay {
