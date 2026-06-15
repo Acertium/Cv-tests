@@ -717,6 +717,52 @@ function getFavQuestions(group, temaId, questions) {
   } catch(e) { return []; }
 }
 
+// ─── IGNORADAS ─────────────────────────────────────────────────────────────────
+// Mismo patrón que favoritos. Las preguntas ignoradas se excluyen de TODOS los
+// modos de examen generados, pero se siguen viendo y navegando en el modo estudio.
+const IGN_KEY   = (g, t, qn) => 'fusion_ignored_' + g + '_t' + t + '_q' + qn;
+const IGN_INDEX = (g, t)     => 'fusion_ignoredidx_' + g + '_t' + t;
+function isIgnored(group, temaId, qn) {
+  try { return localStorage.getItem(IGN_KEY(group, temaId, qn)) === '1'; } catch(e) { return false; }
+}
+function toggleIgnored(group, temaId, qn) {
+  try {
+    const key = IGN_KEY(group, temaId, qn);
+    const was = localStorage.getItem(key) === '1';
+    if (was) {
+      localStorage.removeItem(key);
+      let idx = JSON.parse(localStorage.getItem(IGN_INDEX(group, temaId)) || '[]');
+      idx = idx.filter(n => n !== qn);
+      localStorage.setItem(IGN_INDEX(group, temaId), JSON.stringify(idx));
+      showToast('Pregunta reactivada', 1500);
+    } else {
+      localStorage.setItem(key, '1');
+      let idx = JSON.parse(localStorage.getItem(IGN_INDEX(group, temaId)) || '[]');
+      if (!idx.includes(qn)) idx.push(qn);
+      localStorage.setItem(IGN_INDEX(group, temaId), JSON.stringify(idx));
+      showToast('🚫 Pregunta ignorada', 1500);
+    }
+    renderQuestion();
+  } catch(e) {}
+}
+// Set de q.n ignorados de un tema (para filtrar pools de un solo tema).
+function getIgnoredSet(group, temaId) {
+  try {
+    const idx = JSON.parse(localStorage.getItem(IGN_INDEX(group, temaId)) || '[]');
+    return new Set(Array.isArray(idx) ? idx : []);
+  } catch(e) { return new Set(); }
+}
+// Filtra un pool multi-tema (preguntas con _group/_temaId) excluyendo las ignoradas.
+// Cachea el Set por tema para no consultar localStorage por pregunta.
+function excludeIgnored(pool) {
+  const cache = {};
+  return pool.filter(q => {
+    const k = q._group + '_t' + q._temaId;
+    if (!(k in cache)) cache[k] = getIgnoredSet(q._group, q._temaId);
+    return !cache[k].has(q.n);
+  });
+}
+
 function renderQuestion() {
   const qs  = state.questions;
   const idx = state.current;
@@ -729,6 +775,7 @@ function renderQuestion() {
   const hasEdit = !!localStorage.getItem(EDIT_KEY(state.group, state.temaId, q.n));
 
   const favActive = isFav(state.group, state.temaId, q.n);
+  const ignActive = isIgnored(state.group, state.temaId, q.n);
   document.getElementById('nav').innerHTML = `
     <button class="btn btn--nav" onclick="goTo(${idx-1})" ${idx===0?'disabled':''}>← Anterior</button>
     <button class="btn btn--index" onclick="toggleIndex()">⊞ ${idx+1}/${qs.length}</button>
@@ -769,6 +816,7 @@ function renderQuestion() {
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
         </button>
         <button class="btn--fav-inline ${favActive ? 'btn--fav-inline--on' : ''}" onclick="toggleFav('${state.group}',${state.temaId},${q.n})" title="${favActive ? 'Quitar marcador' : 'Marcar pregunta'}">${favActive ? '❤️' : '🤍'}</button>
+        <button class="btn--ign-inline ${ignActive ? 'btn--ign-inline--on' : ''}" onclick="toggleIgnored('${state.group}',${state.temaId},${q.n})" title="${ignActive ? 'Reactivar pregunta (volver a incluirla en los exámenes)' : 'Ignorar pregunta (excluirla de los exámenes)'}">🚫</button>
         <button class="btn--edit${hasEdit ? ' btn--edit--modified' : ''}" onclick="openEditModal(${idx})" title="Editar pregunta">✏️${hasEdit ? ' <span class="edit-badge">Editada</span>' : ''}</button>
       </div>
     </div>
@@ -1237,7 +1285,14 @@ function shuffleArray(arr) {
 
 function startExam() {
   if (!state.questions || state.questions.length === 0) return;
-  EXAM.questions   = shuffleArray(state.questions).slice(0, Math.min(10, state.questions.length));
+  // Excluir ignoradas del tema antes de elegir las aleatorias.
+  const ign = getIgnoredSet(state.group, state.temaId);
+  const pool = state.questions.filter(q => !ign.has(q.n));
+  if (pool.length === 0) {
+    showToast('🚫 Todas las preguntas de este tema están ignoradas. Reactiva alguna para examinarte.', 4000);
+    return;
+  }
+  EXAM.questions   = shuffleArray(pool).slice(0, Math.min(10, pool.length));
   EXAM.answers     = {};
   EXAM.current     = 0;
   EXAM.startTime   = Date.now();
@@ -1588,9 +1643,16 @@ function finishExam() {
 
 function startFavExam() {
   if (!state.questions || state.questions.length === 0) return;
-  const favs = getFavQuestions(state.group, state.temaId, state.questions);
+  let favs = getFavQuestions(state.group, state.temaId, state.questions);
   if (favs.length === 0) {
     showToast('No hay preguntas marcadas en este tema. Usa 🤍 para marcarlas.', 3500);
+    return;
+  }
+  // Excluir ignoradas aunque estén marcadas como favoritas.
+  const ign = getIgnoredSet(state.group, state.temaId);
+  favs = favs.filter(q => !ign.has(q.n));
+  if (favs.length === 0) {
+    showToast('🚫 Todas las marcadas de este tema están ignoradas. Reactiva alguna para repasarlas.', 4000);
     return;
   }
   EXAM.questions   = shuffleArray(favs.slice());
@@ -1741,6 +1803,16 @@ async function launchSim() {
   allQ = allQ.filter(q => !mastered.has(CAJON_ITEM_KEY(q._group, q._temaId, q.n)));
   if (allQ.length === 0) {
     showToast('¡Dominas todas las preguntas de estos temas! Reinicia el progreso para repasarlas de nuevo.', 5000);
+    renderSimBody();
+    return;
+  }
+
+  // ─── Excluir preguntas ignoradas (🚫) ─────────────────────────────────────
+  // Junto a dominadas y anti-repetición; opera sobre el pool ya cargado por su
+  // _group/_temaId real. Si tras excluirlas no queda ninguna, no se lanza.
+  allQ = excludeIgnored(allQ);
+  if (allQ.length === 0) {
+    showToast('🚫 Has ignorado todas las preguntas de estos temas. Reactiva alguna para el simulacro.', 5000);
     renderSimBody();
     return;
   }
@@ -1964,6 +2036,14 @@ async function launchCajon() {
     return;
   }
 
+  // Excluir ignoradas del repaso SIN borrarlas del cajón: si se reactivan, vuelven a salir.
+  allQ = excludeIgnored(allQ);
+  if (allQ.length === 0) {
+    showToast('🚫 Todas las preguntas del cajón están ignoradas. Reactiva alguna para repasarlas.', 4000);
+    renderCajonBody();
+    return;
+  }
+
   const count = CAJON.nQuestions === 'all' ? allQ.length : Math.min(CAJON.nQuestions, allQ.length);
   const final = shuffleArray(allQ).slice(0, count);
 
@@ -2124,8 +2204,16 @@ const WEAK_MIN_SEEN       = 1;    // basta con haberla respondido 1 vez
 
 function startWeakExam() {
   if (!state.questions || state.questions.length === 0) return;
+  // Excluir ignoradas antes de aplicar el peso por fallos (el gate y el muestreo
+  // operan ya sobre el pool activo).
+  const ign = getIgnoredSet(state.group, state.temaId);
+  const activeQs = state.questions.filter(q => !ign.has(q.n));
+  if (activeQs.length === 0) {
+    showToast('🚫 Todas las preguntas de este tema están ignoradas. Reactiva alguna para el repaso.', 4000);
+    return;
+  }
   // Contar preguntas respondidas al menos 1 vez en este tema
-  const seenCount = state.questions.filter(q => {
+  const seenCount = activeQs.filter(q => {
     try {
       const raw = localStorage.getItem(STAT_KEY(state.group, state.temaId, q.n));
       if (!raw) return false;
@@ -2133,15 +2221,15 @@ function startWeakExam() {
       return stat.seen >= 1;
     } catch(e) { return false; }
   }).length;
-  // Mínimo requerido: 50 o el total de preguntas del tema si hay menos de 50
-  const minRequired = Math.min(50, state.questions.length);
+  // Mínimo requerido: 50 o el total de preguntas activas del tema si hay menos de 50
+  const minRequired = Math.min(50, activeQs.length);
   if (seenCount < minRequired) {
     const faltan = minRequired - seenCount;
     showToast('Responde ' + faltan + ' pregunta' + (faltan > 1 ? 's' : '') + ' más para activar el repaso de puntos débiles (mínimo ' + minRequired + ').', 4000);
     return;
   }
   const weak = getWeakQuestions(
-    state.group, state.temaId, state.questions,
+    state.group, state.temaId, activeQs,
     WEAK_MIN_SEEN, WEAK_EXAM_QUESTIONS
   );
   if (weak.length === 0) {

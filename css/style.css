@@ -1573,6 +1573,23 @@ html.dark .streak-modal__header { background: var(--card); border-color: var(--b
 }
 .btn--fav-inline:hover { background: #fee2e2; }
 .btn--fav-inline--on { background: #fee2e2; }
+/* Ignorar: mismo tamaño/estilo que el favorito. Atenuado/contorno cuando no está
+   activa; resaltado en rojo cuando la pregunta está ignorada (como el corazón). */
+.btn--ign-inline {
+  background: none;
+  border: none;
+  font-size: 1.05rem;
+  cursor: pointer;
+  padding: 4px 5px;
+  border-radius: 6px;
+  line-height: 1;
+  opacity: .3;
+  filter: grayscale(1);
+  transition: background .12s, opacity .12s, filter .12s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn--ign-inline:hover { background: #fee2e2; opacity: .6; }
+.btn--ign-inline--on { opacity: 1; filter: none; background: #fee2e2; }
 
 /* ── QUITAR MARGEN CARD ACTIONS (ya no hay botón azul) ─────────────────── */
 .card__actions { display: none; }
