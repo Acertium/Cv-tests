@@ -1265,6 +1265,11 @@ body.scroll-locked { overflow: hidden; position: fixed; width: 100%; left: 0; ri
 .cajon-info {
   margin: 4px 0 0; color: var(--muted); font-size: .8rem; line-height: 1.45;
 }
+.btn--cajon-clear {
+  display: block; width: 100%; margin-top: 8px;
+  font-size: .8rem; padding: 9px 12px; color: var(--muted);
+}
+html.dark .btn--cajon-clear { background: var(--card); border-color: var(--border); color: var(--muted); }
 .cajon-result {
   text-align: center; padding: 12px 14px; border-radius: 10px;
   background: var(--ok-bg); border: 1.5px solid var(--ok); color: var(--ok);

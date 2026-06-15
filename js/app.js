@@ -1903,7 +1903,31 @@ function renderCajonBody() {
     '<div class="sim-options">'
     + '<label class="sim-opt-label">Nº preguntas<select class="sim-select" onchange="CAJON.nQuestions = this.value === \'all\' ? \'all\' : Number(this.value)">' + nOpts + '</select></label>'
     + '</div>'
-    + '<button class="btn btn--sim-launch" onclick="launchCajon()">▶ Iniciar repaso</button>';
+    + '<button class="btn btn--sim-launch" onclick="launchCajon()">▶ Iniciar repaso</button>'
+    + '<button class="btn btn--cajon-clear" onclick="clearCajonConfirm()">🗑 Vaciar cajón</button>';
+}
+
+let cajonClearTimer = null, cajonClearStep = 0;
+
+function clearCajonConfirm() {
+  const btn = document.querySelector('.btn--cajon-clear');
+  if (!btn) return;
+  if (cajonClearStep === 0) {
+    cajonClearStep = 1;
+    btn.textContent = '¿Seguro? (confirmar)';
+    btn.classList.add('btn--reset-warn');
+    cajonClearTimer = setTimeout(() => {
+      cajonClearStep = 0;
+      btn.textContent = '🗑 Vaciar cajón';
+      btn.classList.remove('btn--reset-warn');
+    }, 3000);
+  } else {
+    clearTimeout(cajonClearTimer); cajonClearStep = 0;
+    localStorage.removeItem(CAJON_KEY); // solo fusion_cajon; no toca seen/mastery/stat/edit
+    renderCajonBody();   // re-render: muestra estado vacío
+    updateCajonBtn();    // badge de la subbar → 0/oculto
+    showToast('Cajón vaciado', 2000);
+  }
 }
 
 async function launchCajon() {
